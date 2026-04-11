@@ -1,0 +1,31 @@
+=== two-core shared-LLC RTL verification ===
+
+--- file sizes ---
+-rw-r--r--. 1 root root     546689 Apr 11 11:34 OpenLLC.sv
+-rw-r--r--. 1 root root 2732662478 Apr 11 08:47 SimTop.fir
+-rw-r--r--. 1 root root    5456865 Apr 11 11:34 SimTop.sv
+-rw-r--r--. 1 root root     163420 Apr 11 11:34 XSTile.sv
+-rw-r--r--. 1 root root     458267 Apr 11 11:34 XSTop.sv
+
+--- check 1: XSTile instantiations in XSTop (expect 2) ---
+1522:  XSTile core_with_l2 (	// home/Ray/XiangShan/src/main/scala/top/Top.scala:100:15
+1689:  XSTile core_with_l2_1 (	// home/Ray/XiangShan/src/main/scala/top/Top.scala:100:15
+
+--- check 2: OpenLLC instantiations in XSTop (expect 1) ---
+2041:  OpenLLC chi_openllc_opt (	// home/Ray/XiangShan/src/main/scala/top/Top.scala:303:15
+
+--- check 3: io_rn_0_* and io_rn_1_* wire counts in OpenLLC.sv ---
+io_rn_0_*: 64
+io_rn_1_*: 64
+
+--- check 4: distinct tgtID constants in XSTop routing (expect 11h2/11h3 MMIO + 11h4 OpenLLC) ---
+11'h2
+11'h3
+11'h4
+
+--- check 5: per-XSTile nodeID inputs in XSTop (expect 11h0 and 11h1) ---
+1614:    .io_nodeID                                               (11'h0),
+1781:    .io_nodeID                                               (11'h1),	// home/Ray/XiangShan/src/main/scala/top/Top.scala:433:16
+
+--- elaboration proof: OpenLLC MainPipe Vec of size 2 ---
+[749] [warn] home/Ray/XiangShan/openLLC/src/main/scala/openLLC/MainPipe.scala 111:60: [W004] Dynamic index with width 11 is too wide for Vec of size 2 (expected index width 1).
