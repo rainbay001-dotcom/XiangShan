@@ -236,7 +236,7 @@ class MinimalConfig(n: Int = 1) extends Config(
           ways = 8,
           sets = 2048,
           banks = 4,
-          clientCaches = Seq(L2Param())
+          clientCaches = tiles.map(_ => L2Param())
         )),
         L3NBanks = 1
       )
