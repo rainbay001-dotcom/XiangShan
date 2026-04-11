@@ -1,0 +1,27 @@
+FROM xsdev-local
+
+WORKDIR /work
+COPY . /work/
+
+ENV NOOP_HOME=/work
+ENV NEMU_HOME=/work/NEMU
+ENV AM_HOME=/work/AM
+
+# First compile only (faster, cacheable layer)
+RUN mill -i xiangshan.compile && mill -i xiangshan.test.compile
+
+# Generate sim Verilog (equivalent to `make sim-verilog`)
+# Use chirrtl target first (no firtool needed), then run firtool separately with memory limits
+RUN mill -i -Djvm-xmx=8G xiangshan.test.runMain top.XiangShanSim \
+    --target-dir /work/build --config TLConfig --issue E.b \
+    --num-cores 1 \
+    --target chirrtl \
+    --enable-difftest \
+    --full-stacktrace
+
+# Run firtool separately to convert CHIRRTL -> SystemVerilog
+RUN /root/.cache/llvm-firtool/1.135.0/bin/firtool /work/build/SimTop.fir \
+    --split-verilog -o /work/build \
+    --default-layer-specialization=enable \
+    --disable-all-randomization \
+    --lowering-options=emittedLineLength=120
