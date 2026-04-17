@@ -98,6 +98,7 @@ case class SoCParameters
   UseXSNoCTop: Boolean = false,
   UseXSNoCDiffTop: Boolean = false,
   UseXSTileDiffTop: Boolean = false,
+  UseDualSocketTop: Boolean = false,
   IMSICUseTL: Boolean = false,
   SeperateBus: top.SeperatedBusType.Value = top.SeperatedBusType.NONE,
   SeperateDM: Boolean = false, // for non-XSNoCTop only, should work with SeperateBus
