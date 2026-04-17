@@ -501,6 +501,9 @@ object TopMain extends App {
   } else if (config(SoCParamsKey).UseXSTileDiffTop) {
     val soc = DisableMonitors(p => LazyModule(new XSTileDiffTop()(p)))(config)
     Generator.execute(firrtlOpts, soc.module, firtoolOpts)
+  } else if (config(SoCParamsKey).UseDualSocketTop) {
+    val soc = DisableMonitors(p => LazyModule(new DualSocketTop()(p)))(config)
+    Generator.execute(firrtlOpts, soc.module, firtoolOpts)
   } else {
     val soc = if (config(SoCParamsKey).UseXSNoCTop)
       DisableMonitors(p => LazyModule(new XSNoCTop()(p)))(config)

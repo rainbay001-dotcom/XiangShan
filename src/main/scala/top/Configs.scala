@@ -516,7 +516,18 @@ class XSNoCDiffTopMinimalConfig(n: Int = 1) extends Config(
   })
 )
 
-class FpgaDefaultConfig(n: Int = 1) extends Config(
+// Phase-1 scaffold for two-socket XiangShan. Each socket is a full XSTop built from
+// CHIConfig(coresPerSocket); DualSocketTop wires two of them together plus a stub
+// XSBridge. See src/main/scala/top/DualSocketTop.scala and
+// docs/design-two-socket-system.md. The `n` parameter here is cores PER SOCKET, so the
+// total core count is 2*n.
+class DualSocketConfig(coresPerSocket: Int = 2) extends Config(
+  (new CHIConfig(coresPerSocket)).alter((site, here, up) => {
+    case SoCParamsKey => up(SoCParamsKey).copy(UseDualSocketTop = true)
+  })
+)
+
+class TLFpgaDefaultConfig(n: Int = 1) extends Config(
   (L3CacheConfig("3MB", inclusive = false, banks = 1, ways = 6)
     ++ L2CacheConfig("1MB", inclusive = true, banks = 4)
     ++ WithNKBL1D(64, ways = 4)
