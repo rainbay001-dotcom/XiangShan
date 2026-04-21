@@ -20,32 +20,28 @@ import coupledL2.tl2chi.PortIO
 import org.chipsalliance.cde.config.Parameters
 import system.HasSoCParameter
 
-// Scaffold-only stub for the cross-socket CHI bridge.
+// Scaffold stub for the cross-socket CHI bridge.
 //
-// Real forwarding logic (REQ/RSP/DAT/SNP routing, TxnID remapping, remote-present
-// directory extension in OpenLLC) lives in future PRs per
-// docs/design-cross-socket-bridge.md. This module exists so DualSocketTop elaborates
-// with the intended topology, and so any accidental cross-socket traffic during
-// development trips a loud assertion instead of silently succeeding.
+// Each socket exposes one remote CHI port per core (Vec(numCoresPerSocket, PortIO)). The
+// bridge accepts them as Flipped — from the bridge's view, the socket is the initiator on
+// tx and the receiver on rx. Real forwarding (REQ/RSP/DAT + TxnID remap, then snoop path +
+// remote-present directory bit per design-cross-socket-bridge.md) lives in future PRs.
 //
-// Each io.s{0,1} port is Flipped, so from this module's perspective the socket is the
-// initiator on tx and receiver on rx. PortIO channels use CHI flit/L-credit signaling
-// (ChannelIO: flitpend/flitv/flit are tx-driven, lcrdv is rx-driven).
-class XSBridge()(implicit val p: Parameters) extends Module with HasSoCParameter {
+// Tie-offs issue zero L-credits so sockets cannot send; rx channels emit nothing; link +
+// port switches stay inactive; syscoack echoes syscoreq so per-socket power FSMs don't hang.
+// Any tx flit that sneaks through trips a `$fatal` via assert.
+class XSBridge(numCoresPerSocket: Int = 2)(implicit val p: Parameters) extends Module with HasSoCParameter {
   val io = IO(new Bundle {
-    val s0 = Flipped(new PortIO)
-    val s1 = Flipped(new PortIO)
+    val s0 = Vec(numCoresPerSocket, Flipped(new PortIO))
+    val s1 = Vec(numCoresPerSocket, Flipped(new PortIO))
     val nodeID = Input(UInt(soc.NodeIDWidthList(issue).W))
   })
 
   private def tieOff(port: PortIO): Unit = {
-    // tx side: socket drives flit{pend,v,data}; we drive lcrdv. Issue zero credits so
-    // the socket cannot send anything.
     port.tx.req.lcrdv := false.B
     port.tx.rsp.lcrdv := false.B
     port.tx.dat.lcrdv := false.B
 
-    // rx side: we drive flit{pend,v,data}; socket drives lcrdv. Emit nothing.
     port.rx.snp.flitpend := false.B
     port.rx.snp.flitv    := false.B
     port.rx.snp.flit     := 0.U
@@ -56,26 +52,21 @@ class XSBridge()(implicit val p: Parameters) extends Module with HasSoCParameter
     port.rx.dat.flitv    := false.B
     port.rx.dat.flit     := 0.U
 
-    // Link activation handshake: stay inactive on both halves.
     port.tx.linkactiveack := false.B
     port.rx.linkactivereq := false.B
 
-    // Port switch: accept that the socket is active, keep our side inactive.
     port.rxsactive := false.B
-
-    // System coherency: echo syscoreq back as syscoack so the per-socket power FSM
-    // sees a clean handshake. This is safe because no coherence domain spans the
-    // bridge yet.
     port.syscoack := port.syscoreq
   }
 
-  tieOff(io.s0)
-  tieOff(io.s1)
+  io.s0.foreach(tieOff)
+  io.s1.foreach(tieOff)
 
   dontTouch(io)
 
-  val s0_any_tx = io.s0.tx.req.flitv || io.s0.tx.rsp.flitv || io.s0.tx.dat.flitv
-  val s1_any_tx = io.s1.tx.req.flitv || io.s1.tx.rsp.flitv || io.s1.tx.dat.flitv
-  assert(!s0_any_tx, "XSBridge: socket 0 emitted cross-socket CHI flit; bridge is scaffold-only")
-  assert(!s1_any_tx, "XSBridge: socket 1 emitted cross-socket CHI flit; bridge is scaffold-only")
+  private def anyTx(ports: Vec[PortIO]): Bool =
+    ports.map(p => p.tx.req.flitv || p.tx.rsp.flitv || p.tx.dat.flitv).reduce(_ || _)
+
+  assert(!anyTx(io.s0), "XSBridge: socket 0 emitted cross-socket CHI flit; bridge is scaffold-only")
+  assert(!anyTx(io.s1), "XSBridge: socket 1 emitted cross-socket CHI flit; bridge is scaffold-only")
 }
