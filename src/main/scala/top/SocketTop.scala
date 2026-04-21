@@ -400,10 +400,18 @@ class SocketTop(
         io_chi_bridge_in.foreach { port =>
           chi_openllc_opt.get.io.rn(NumCores) <> port
         }
+        // OpenLLC's debugTopDown Vecs are sized by numRNs, which is NumCores+1 when
+        // hasBridgeInject is set. Pad the source with a dummy entry for the bridge RN.
         chi_openllc_opt.foreach { l3 =>
-          l3.io.debugTopDown.robHeadPaddr := core_with_l2.map(_.module.io.debugTopDown.robHeadPaddr)
+          val coreRobHeads = core_with_l2.map(_.module.io.debugTopDown.robHeadPaddr)
+          val llcRobHeads = l3.io.debugTopDown.robHeadPaddr
+          val padded = if (coreRobHeads.length < llcRobHeads.length) {
+            coreRobHeads ++ Seq.fill(llcRobHeads.length - coreRobHeads.length)(0.U.asTypeOf(coreRobHeads.head))
+          } else coreRobHeads
+          llcRobHeads := VecInit(padded)
         }
-        core_with_l2.zip(chi_openllc_opt.get.io.debugTopDown.addrMatch).foreach { case (tile, l3Match) =>
+        // Only zip the core entries; extras (bridge RN) are ignored.
+        core_with_l2.zip(chi_openllc_opt.get.io.debugTopDown.addrMatch.take(NumCores)).foreach { case (tile, l3Match) =>
           tile.module.io.debugTopDown.l3MissMatch := l3Match
         }
         core_with_l2.map(_.module.io.l3Miss := (if (chi_openllc_opt.nonEmpty) chi_openllc_opt.get.io.l3Miss else false.B))
