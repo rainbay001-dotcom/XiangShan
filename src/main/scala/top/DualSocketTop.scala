@@ -20,29 +20,38 @@ import freechips.rocketchip.diplomacy._
 import org.chipsalliance.cde.config.Parameters
 import system.HasSoCParameter
 
-// DualSocketTop — Phase-1 scaffold for the two-socket XiangShan system.
+// DualSocketTop — Option 2 scaffold. Each socket is a SocketTop (XSTop-equivalent per-socket
+// stack owned in our source tree). Each SocketTop routes its cores' CHI stream three ways:
+// local MMIO -> per-core bridge, local DDR -> its own OpenLLC, remote DDR -> io_chi_remote.
+// The remote ports (Vec(N) per socket) land on XSBridge, which is still a scaffold stub — it
+// accepts no flits and $fatals if the stub path ever fires.
 //
-// Topology: 2 sockets × 2 cores = 4 cores total. Each socket is a full XSTop
-// (2× XSTile + shared OpenLLC + OpenNCB + MMIO bridges + DDR AXI), replicating
-// the verified `feat/two-core-shared-llc` stack. An XSBridge stub sits between the
-// two sockets so downstream work can plug in real cross-socket CHI forwarding.
+// Address map (fixed for the 48-bit PAddrBits space):
+//   MMIO            0x0000_0000 .. 0x7FFF_FFFF    (per-socket, replicated)
+//   Socket 0 DDR    0x80_0000_0000 .. 0x3F_FFFF_FFFF
+//   Socket 1 DDR    0x40_00_0000_0000 .. 0x7F_FF_FFFF_FFFF
 //
-// This module's goal is RTL generation only. To keep the top-level IO surface small
-// enough to inspect by hand, every XSTop input is driven to a safe default here and
-// outputs are `dontTouch`ed so they survive firtool optimization. The XSBridge ports
-// are tied off internally — the bridge only fires assertions if future work wires up
-// real CHI flits without first lifting the stub.
-//
-// See docs/design-two-socket-system.md for the full architecture and
-// docs/design-cross-socket-bridge.md for the XSBridge roadmap.
+// Real cross-socket forwarding (REQ/RSP/DAT + TxnID remap, and later SNP + remote-present
+// directory bit in OpenLLC) lives in follow-up PRs.
 class DualSocketTop()(implicit p: Parameters) extends LazyModule
   with HasSoCParameter
   with BindingScope
 {
   override lazy val desiredName: String = "DualSocketTop"
 
-  val socket0 = LazyModule(new XSTop())
-  val socket1 = LazyModule(new XSTop())
+  val socket0Local  = AddressSet(0x80000000L,      0x3f7fffffffL)   // 0x80000000 .. 0x3f_ffffffff
+  val socket1Local  = AddressSet(0x4000000000L,    0x3fffffffffL)   // 0x40_00000000 .. 0x7f_ffffffff
+
+  val socket0 = LazyModule(new SocketTop(
+    socketId    = 0,
+    localRange  = socket0Local,
+    remoteRange = Some(socket1Local)
+  ))
+  val socket1 = LazyModule(new SocketTop(
+    socketId    = 1,
+    localRange  = socket1Local,
+    remoteRange = Some(socket0Local)
+  ))
 
   lazy val module = new DualSocketTopImp(this)
 }
@@ -51,7 +60,7 @@ class DualSocketTopImp(wrapper: DualSocketTop) extends LazyRawModuleImp(wrapper)
   val cpu_clock = IO(Input(Clock()))
   val cpu_reset = IO(Input(AsyncReset()))
 
-  private def tieSocket(sock: XSTop): Unit = {
+  private def tieSocket(sock: SocketTop, hartIdBase: Int, nodeIdBase: Int): Unit = {
     val m = sock.module
     m.io.clock := cpu_clock
     m.io.reset := cpu_reset
@@ -68,26 +77,33 @@ class DualSocketTopImp(wrapper: DualSocketTop) extends LazyRawModuleImp(wrapper)
     m.io.rtc_clock := cpu_clock
     m.io.cacheable_check := DontCare
     m.io.riscv_rst_vec.foreach(_ := "h80000000".U)
+    m.io.hartId_base := hartIdBase.U
+    m.io.nodeId_base := nodeIdBase.U
     m.io.traceCoreInterface.foreach { t =>
       t.fromEncoder.enable := false.B
       t.fromEncoder.stall  := false.B
     }
-    // Preserve outputs so firtool doesn't fold them away.
     dontTouch(m.io)
     dontTouch(m.memory)
     dontTouch(m.peripheral)
     m.dma.foreach { d => d := DontCare; dontTouch(d) }
   }
 
-  tieSocket(wrapper.socket0)
-  tieSocket(wrapper.socket1)
+  // Socket 0: hartId 0..N-1, NodeID base 0 (tile nodeIDs 0..N-1).
+  // Socket 1: hartId N..2N-1, NodeID base 256 (bit 8 separates sockets per design doc).
+  tieSocket(wrapper.socket0, hartIdBase = 0,   nodeIdBase = 0)
+  tieSocket(wrapper.socket1, hartIdBase = 2,   nodeIdBase = 256)
 
-  // Cross-socket CHI bridge (scaffold stub).
   val bridge = withClockAndReset(cpu_clock, cpu_reset) {
-    Module(new XSBridge())
+    Module(new XSBridge(numCoresPerSocket = 2))
   }
-  bridge.io.s0 := DontCare
-  bridge.io.s1 := DontCare
+  // Wire each socket's per-core remote CHI stream to the bridge.
+  wrapper.socket0.module.io_chi_remote.foreach { vec =>
+    (bridge.io.s0 zip vec).foreach { case (b, v) => b <> v }
+  }
+  wrapper.socket1.module.io_chi_remote.foreach { vec =>
+    (bridge.io.s1 zip vec).foreach { case (b, v) => b <> v }
+  }
   bridge.io.nodeID := 512.U
   dontTouch(bridge.io)
 }
