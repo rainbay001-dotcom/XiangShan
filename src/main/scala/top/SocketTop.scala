@@ -272,8 +272,11 @@ class SocketTop(
     )
 
     // CHI inject port for XSBridge to act as an extra RN-F on this socket's OpenLLC.
-    // Only exposed when `hasBridgeInject` is set; wired to OpenLLC's (NumCores+1)-th rn port.
-    val io_chi_bridge_in = Option.when(hasBridgeInject)(IO(new PortIO))
+    // Only exposed when `hasBridgeInject` is set; wired to OpenLLC's (NumCores+1)-th rn
+    // port. Flipped so the SocketTop-internal directions match the LLC's rn (both are
+    // Flipped(PortIO) = HN-F view); the bridge on the other side declares s*_inject as
+    // natural PortIO (RN-F view), and `<>` pairs the two.
+    val io_chi_bridge_in = Option.when(hasBridgeInject)(IO(Flipped(new PortIO)))
 
     val reset_sync = withClockAndReset(io.clock, io.reset) { ResetGen() }
     val jtag_reset_sync = withClockAndReset(io.systemjtag.jtag.TCK, io.systemjtag.reset) { ResetGen() }
