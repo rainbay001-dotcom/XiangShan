@@ -43,14 +43,16 @@ class DualSocketTop()(implicit p: Parameters) extends LazyModule
   val socket1Local  = AddressSet(0x4000000000L,    0x3fffffffffL)   // 0x40_00000000 .. 0x7f_ffffffff
 
   val socket0 = LazyModule(new SocketTop(
-    socketId    = 0,
-    localRange  = socket0Local,
-    remoteRange = Some(socket1Local)
+    socketId         = 0,
+    localRange       = socket0Local,
+    remoteRange      = Some(socket1Local),
+    hasBridgeInject  = true
   ))
   val socket1 = LazyModule(new SocketTop(
-    socketId    = 1,
-    localRange  = socket1Local,
-    remoteRange = Some(socket0Local)
+    socketId         = 1,
+    localRange       = socket1Local,
+    remoteRange      = Some(socket0Local),
+    hasBridgeInject  = true
   ))
 
   lazy val module = new DualSocketTopImp(this)
@@ -97,12 +99,20 @@ class DualSocketTopImp(wrapper: DualSocketTop) extends LazyRawModuleImp(wrapper)
   val bridge = withClockAndReset(cpu_clock, cpu_reset) {
     Module(new XSBridge(numCoresPerSocket = 2))
   }
-  // Wire each socket's per-core remote CHI stream to the bridge.
+  // Wire each socket's per-core remote CHI stream to the bridge (outgoing side).
   wrapper.socket0.module.io_chi_remote.foreach { vec =>
     (bridge.io.s0 zip vec).foreach { case (b, v) => b <> v }
   }
   wrapper.socket1.module.io_chi_remote.foreach { vec =>
     (bridge.io.s1 zip vec).foreach { case (b, v) => b <> v }
+  }
+  // Wire the bridge's inject ports into each socket's LLC (as an extra RN-F).
+  // bridge.sX_inject carries requests that originated on the OTHER socket.
+  wrapper.socket0.module.io_chi_bridge_in.foreach { port =>
+    bridge.io.s0_inject <> port
+  }
+  wrapper.socket1.module.io_chi_bridge_in.foreach { port =>
+    bridge.io.s1_inject <> port
   }
   bridge.io.nodeID := 512.U
   dontTouch(bridge.io)

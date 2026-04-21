@@ -23,7 +23,7 @@ import utils._
 import utility._
 import utility.sram.SramBroadcastBundle
 import huancun.{HCCacheParameters, HCCacheParamsKey, HuanCun, PrefetchRecv, TPmetaResp}
-import coupledL2.EnableCHI
+import coupledL2.{EnableCHI, L2Param}
 import coupledL2.tl2chi.{CHILogger, PortIO}
 import openLLC.{OpenLLC, OpenLLCParamKey, OpenNCB}
 import openLLC.TargetBinder._
@@ -54,7 +54,8 @@ import scala.collection.mutable
 class SocketTop(
     val socketId: Int = 0,
     val localRange: AddressSet = AddressSet(0x80000000L, 0xffffffffffffL - 0x7fffffffL),
-    val remoteRange: Option[AddressSet] = None
+    val remoteRange: Option[AddressSet] = None,
+    val hasBridgeInject: Boolean = false
 )(implicit p: Parameters) extends BaseXSSoc()
 {
   override lazy val desiredName: String = "SocketTop"
@@ -270,14 +271,23 @@ class SocketTop(
       IO(Vec(NumCores, new PortIO))
     )
 
+    // CHI inject port for XSBridge to act as an extra RN-F on this socket's OpenLLC.
+    // Only exposed when `hasBridgeInject` is set; wired to OpenLLC's (NumCores+1)-th rn port.
+    val io_chi_bridge_in = Option.when(hasBridgeInject)(IO(new PortIO))
+
     val reset_sync = withClockAndReset(io.clock, io.reset) { ResetGen() }
     val jtag_reset_sync = withClockAndReset(io.systemjtag.jtag.TCK, io.systemjtag.reset) { ResetGen() }
     val chi_openllc_opt = Option.when(enableCHI)(
       withClockAndReset(io.clock, io.reset) {
         Module(new OpenLLC()(p.alter((site, here, up) => {
+          // Bridge injects requests into this socket's LLC as an extra RN-F. Append
+          // one clientCaches slot for it; use an unused hartId (just past the cores)
+          // so OpenLLC's per-RN bookkeeping stays 1:1 with clientCaches.
           case OpenLLCParamKey => soc.OpenLLCParamsOpt.get.copy(
-            hartIds = tiles.map(_.HartId),
-            FPGAPlatform = debugOpts.FPGAPlatform
+            hartIds = tiles.map(_.HartId) ++ (if (hasBridgeInject) Seq(tiles.length) else Seq()),
+            FPGAPlatform = debugOpts.FPGAPlatform,
+            clientCaches = soc.OpenLLCParamsOpt.get.clientCaches ++
+              (if (hasBridgeInject) Seq(L2Param()) else Seq())
           )
         })))
       }
@@ -291,6 +301,7 @@ class SocketTop(
     dontTouch(io)
     dontTouch(memory)
     io_chi_remote.foreach(dontTouch(_))
+    io_chi_bridge_in.foreach(dontTouch(_))
     misc.module.ext_intrs := io.extIntrs
     misc.module.pll0_lock := io.pll0_lock
     misc.module.cacheable_check <> io.cacheable_check
@@ -380,6 +391,12 @@ class SocketTop(
         chi_openllc_opt.get.io.sn.connect(memLogger.io.up)
         chi_llcBridge_opt.get.module.io.chi.connect(memLogger.io.down)
         chi_openllc_opt.get.io.nodeID := (NumCores * 2).U
+
+        // Wire the extra LLC RN slot to the bridge-inject port when present. Index
+        // NumCores matches the tail entry we added to clientCaches above.
+        io_chi_bridge_in.foreach { port =>
+          chi_openllc_opt.get.io.rn(NumCores) <> port
+        }
         chi_openllc_opt.foreach { l3 =>
           l3.io.debugTopDown.robHeadPaddr := core_with_l2.map(_.module.io.debugTopDown.robHeadPaddr)
         }
