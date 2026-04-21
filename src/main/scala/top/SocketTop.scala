@@ -34,9 +34,11 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
+import freechips.rocketchip.tilelink._
 import freechips.rocketchip.interrupts._
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.jtag.JTAGIO
+import scala.collection.mutable
 
 // Option 2 per-socket module. Owns its own copy of the per-socket stack (tiles, OpenLLC,
 // OpenNCB, MMIO bridges, interrupt/timer/debug fabric) so dual-socket features (extra CHI
@@ -352,14 +354,16 @@ class SocketTop(
           val llcNodeId    = NumCores * 2
           val remoteNodeId = NumCores * 2 + 1 + i
 
-          val routeMap: Map[AddressSet, Int] =
-            Map((mmioRange, mmioNodeId)) ++
-            localAddrSet.map(addr => (addr, llcNodeId)).toMap ++
-            remoteRange.toSeq.map(r => (r, remoteNodeId)).toMap
+          val routeMap = mutable.Map[AddressSet, Int]()
+          routeMap += (mmioRange -> mmioNodeId)
+          localAddrSet.foreach(addr => routeMap += (addr -> llcNodeId))
+          remoteRange.foreach(r => routeMap += (r -> remoteNodeId))
 
-          val bindMap: Map[Int, PortIO] =
-            Map(mmioNodeId -> mmioLogger.io.up, llcNodeId -> llcLogger.io.up) ++
-            remoteLoggerOpt.map(l => remoteNodeId -> l.io.up).toMap
+          val bindMap = mutable.Map[Int, PortIO](
+            mmioNodeId -> mmioLogger.io.up,
+            llcNodeId  -> llcLogger.io.up
+          )
+          remoteLoggerOpt.foreach(l => bindMap += (remoteNodeId -> l.io.up))
 
           bind(route(core.module.io.chi.get, routeMap), bindMap)
 
