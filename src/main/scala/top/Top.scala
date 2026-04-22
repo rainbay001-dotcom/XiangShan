@@ -502,8 +502,14 @@ object TopMain extends App {
     val soc = DisableMonitors(p => LazyModule(new XSTileDiffTop()(p)))(config)
     Generator.execute(firrtlOpts, DifftestModule.top(soc.module, topPrefix), firtoolOpts)
   } else if (config(SoCParamsKey).UseDualSocketTop) {
-    val soc = DisableMonitors(p => LazyModule(new DualSocketTop()(p)))(config)
-    Generator.execute(firrtlOpts, soc.module, firtoolOpts)
+    if (enableDifftest) {
+      Gateway.setConfig("U")
+      val soc = DisableMonitors(p => LazyModule(new DualSimTop()(p)))(config)
+      Generator.execute(firrtlOpts, DifftestModule.top(soc.module, topPrefix), firtoolOpts)
+    } else {
+      val soc = DisableMonitors(p => LazyModule(new DualSocketTop()(p)))(config)
+      Generator.execute(firrtlOpts, soc.module, firtoolOpts)
+    }
   } else {
     if (enableDifftest) {
       // TODO: Temporarily force XSTop to use internal DPI-C; will later split Top and Difftest like DiffTop

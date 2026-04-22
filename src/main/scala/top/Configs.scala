@@ -666,6 +666,20 @@ class DualSocketConfig(coresPerSocket: Int = 2) extends Config(
   })
 )
 
+// Sim-only variant of DualSocketConfig. Turns on EnableDifftest (required for
+// Rob perfDebugInfo — without it Rob.scala:1461 hits None.get) and AlwaysBasicDiff
+// (selects DualSimTop via TopMain's UseDualSocketTop+diff branch, wraps in
+// DifftestModule.top). 2*coresPerSocket harts are visible to NEMU co-sim.
+class DualSimConfig(coresPerSocket: Int = 2) extends Config(
+  (new DualSocketConfig(coresPerSocket)).alter((site, here, up) => {
+    case DebugOptionsKey => up(DebugOptionsKey).copy(
+      EnableDifftest = true,
+      AlwaysBasicDiff = true,
+      AlwaysBasicDB = false
+    )
+  })
+)
+
 class TLFpgaDefaultConfig(n: Int = 1) extends Config(
   (L3CacheConfig("3MB", inclusive = false, banks = 1, ways = 6)
     ++ L2CacheConfig("1MB", inclusive = true, banks = 4)

@@ -16,6 +16,7 @@
 package top
 
 import chisel3._
+import difftest.HasDiffTestInterfaces
 import freechips.rocketchip.diplomacy._
 import org.chipsalliance.cde.config.Parameters
 import system.HasSoCParameter
@@ -116,4 +117,20 @@ class DualSocketTopImp(wrapper: DualSocketTop) extends LazyRawModuleImp(wrapper)
   }
   bridge.io.nodeID := 512.U
   dontTouch(bridge.io)
+}
+
+// Sim-only wrapper: mixes HasDiffTestInterfaces into DualSocketTopImp so that
+// difftest.DifftestModule.top(...) can collect per-hart probes from all cores
+// across both sockets. Structurally identical to DualSocketTop — the cores'
+// difftest probes are already exported via BoringUtils inside XSTile, so no
+// extra per-core plumbing is needed. Selected by DualSimConfig (AlwaysBasicDiff=true).
+class DualSimTop()(implicit p: Parameters) extends DualSocketTop {
+  override lazy val desiredName: String = "DualSocketTop"
+
+  class DualSimTopImp(wrapper: DualSocketTop) extends DualSocketTopImp(wrapper) with HasDiffTestInterfaces {
+    override def cpuName: Option[String] = Some("XiangShan")
+    override protected def implicitClock: Clock = cpu_clock
+    override protected def implicitReset: Reset = cpu_reset
+  }
+  override lazy val module = new DualSimTopImp(this)
 }
