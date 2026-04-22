@@ -117,6 +117,24 @@ class DualSocketTopImp(wrapper: DualSocketTop) extends LazyRawModuleImp(wrapper)
   }
   bridge.io.nodeID := 512.U
   dontTouch(bridge.io)
+
+  // Expose each socket's AXI master ports as top-level DualSocketTop IOs so that
+  // HasDiffTestInterfaces.dutIOs forwards them to the outer SimTop, which attaches
+  // SimAXIMem during simulation. Without these, firtool rejects with "sink not
+  // fully initialized" on *ready / *valid / *rdata inputs of socket.memory/peripheral.
+  val memory_s0     = IO(chiselTypeOf(wrapper.socket0.module.memory))
+  val memory_s1     = IO(chiselTypeOf(wrapper.socket1.module.memory))
+  val peripheral_s0 = IO(chiselTypeOf(wrapper.socket0.module.peripheral))
+  val peripheral_s1 = IO(chiselTypeOf(wrapper.socket1.module.peripheral))
+  memory_s0     <> wrapper.socket0.module.memory
+  memory_s1     <> wrapper.socket1.module.memory
+  peripheral_s0 <> wrapper.socket0.module.peripheral
+  peripheral_s1 <> wrapper.socket1.module.peripheral
+
+  // Tie off NMI IntSource inputs on both sockets — no external NMI in sim scaffold.
+  // nmi is declared via InModuleBody at the LazyModule level, so unwrap it here.
+  wrapper.socket0.nmi.getWrappedValue.foreach { vec => vec.foreach(_ := false.B) }
+  wrapper.socket1.nmi.getWrappedValue.foreach { vec => vec.foreach(_ := false.B) }
 }
 
 // Sim-only wrapper: mixes HasDiffTestInterfaces into DualSocketTopImp so that
