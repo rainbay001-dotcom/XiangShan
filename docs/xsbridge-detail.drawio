@@ -1,0 +1,371 @@
+<mxfile host="app.diagrams.net" modified="2026-04-28T00:00:00.000Z" agent="Claude" version="21.0.0" type="device">
+  <diagram name="XSBridge详细结构图" id="xsbridge-detail">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============================================================ -->
+        <!-- Title -->
+        <!-- ============================================================ -->
+        <mxCell id="title" value="XSBridge 详细结构图（feat/two-socket-v2）" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="20" width="1200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- Legend -->
+        <!-- ============================================================ -->
+        <mxCell id="legend_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="30" y="20" width="220" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_title" value="图例 Legend" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="45" y="28" width="180" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg1" value="" style="endArrow=block;endFill=1;strokeColor=#0070C0;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry x="45" y="60" width="60" height="10" as="geometry" relative="0">
+            <mxPoint x="45" y="60" as="sourcePoint" />
+            <mxPoint x="105" y="60" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg1_txt" value="Core 0 有效转发路径" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="110" y="52" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2" value="" style="endArrow=block;endFill=1;strokeColor=#FF0000;strokeWidth=2;dashed=1;" edge="1" parent="1">
+          <mxGeometry x="45" y="90" width="60" height="10" as="geometry" relative="0">
+            <mxPoint x="45" y="90" as="sourcePoint" />
+            <mxPoint x="105" y="90" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg2_txt" value="Core 1+ Tied Off ($fatal)" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="110" y="82" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3" value="" style="endArrow=block;endFill=1;strokeColor=#7B00D4;strokeWidth=1.5;" edge="1" parent="1">
+          <mxGeometry x="45" y="120" width="60" height="10" as="geometry" relative="0">
+            <mxPoint x="45" y="120" as="sourcePoint" />
+            <mxPoint x="105" y="120" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg3_txt" value="CHI 通道信号" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="110" y="112" width="130" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4_txt" value="Flipped(PortIO): Bridge 视角为 RX（接收）" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;align=left;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="45" y="140" width="200" height="16" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- Socket 0 外框 -->
+        <!-- ============================================================ -->
+        <mxCell id="sock0" value="Socket 0" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;verticalAlign=top;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="30" y="200" width="480" height="1200" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 0 Core 0 -->
+        <mxCell id="s0c0" value="Core 0（L2 RN-F）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="250" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 0 Core 0 CHI Demux -->
+        <mxCell id="s0c0_demux" value="CHI 地址分流器（Core 0）&#xa;route()+bind()&#xa;MMIO→NCB[0] / 本地→LLC / 远端→io_chi_remote[0]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="330" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- io_chi_remote[0] port on S0 -->
+        <mxCell id="s0_remote0_port" value="io_chi_remote[0]&#xa;PortIO&#xa;（远端地址流量出口）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="440" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- PortIO channels breakdown for s0 remote[0] -->
+        <mxCell id="s0r0_channels" value="PortIO 信号组成（CHI E.b）&#xa;────────────────────&#xa;TX（核心→Bridge方向）&#xa;  tx.req.*   REQ 请求通道&#xa;  tx.rsp.*   RSP 响应通道&#xa;  tx.dat.*   DAT 数据通道&#xa;  tx.linkactiveack&#xa;RX（Bridge→核心方向）&#xa;  rx.snp.*   SNP 监听通道&#xa;  rx.rsp.*   RSP 响应通道&#xa;  rx.dat.*   DAT 数据通道&#xa;  rx.linkactivereq&#xa;rxsactive / syscoreq / syscoack" style="rounded=0;whiteSpace=pre;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=8;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="60" y="530" width="200" height="190" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 0 Core 1 -->
+        <mxCell id="s0c1" value="Core 1（L2 RN-F）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="290" y="250" width="190" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 0 Core 1 CHI Demux -->
+        <mxCell id="s0c1_demux" value="CHI 地址分流器（Core 1）&#xa;route()+bind()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="290" y="330" width="190" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- io_chi_remote[1] port on S0 -->
+        <mxCell id="s0_remote1_port" value="io_chi_remote[1]&#xa;（当前 Tied Off）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="290" y="420" width="190" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 0 OpenLLC -->
+        <mxCell id="s0_llc" value="OpenLLC（HN-F）&#xa;numRNs = NumCores+1&#xa;rn[0]←Core 0  rn[1]←Core 1&#xa;rn[2]←XSBridge inject（额外RN-F槽）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="760" width="380" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- io_chi_bridge_in on S0 -->
+        <mxCell id="s0_bridge_in" value="io_chi_bridge_in&#xa;Flipped(PortIO)&#xa;（Bridge inject 入口，连接 OpenLLC rn[2]）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="880" width="380" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 0 OpenNCB (LLC Bridge) -->
+        <mxCell id="s0_ncb" value="OpenNCB（SN-F，LLC内存桥）&#xa;CHI → AXI4 → DDR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="980" width="380" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 0 MMIO NCBs -->
+        <mxCell id="s0_mmio" value="OpenNCB MMIO Bridge[0/1]（每核一个）&#xa;CHI → AXI4 → 外设总线" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1060" width="380" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 0 DDR label -->
+        <mxCell id="s0_ddr" value="Socket 0 DDR&#xa;0x80_0000_0000 – 0x3F_FFFF_FFFF" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1140" width="380" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- XSBridge 中间框 -->
+        <!-- ============================================================ -->
+        <mxCell id="xsbridge" value="XSBridge&#xa;Module&#xa;nodeID = 512&#xa;numCoresPerSocket = 2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;verticalAlign=top;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="570" y="200" width="860" height="1200" as="geometry" />
+        </mxCell>
+
+        <!-- XSBridge title note -->
+        <mxCell id="bridge_note" value="XiangShan 双 Socket CHI 跨片桥接器&#xa;当前实现（Phase 1）：仅转发 Core 0 流量&#xa;Core 1+ 已 Tied Off，激活则触发 $fatal 断言" style="text;html=1;strokeColor=#d6b656;fillColor=#fff2cc;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="620" y="250" width="760" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- PortIO structure detail box -->
+        <mxCell id="portio_detail" value="PortIO 信号构成（CHI E.b 11-bit NodeID）&#xa;────────────────────────────────────────&#xa;flit 宽度：REQ=256b  RSP=128b  DAT=512b  SNP=256b&#xa;tx.req.{flitpend, flitv, flit[255:0], lcrdv}&#xa;tx.rsp.{flitpend, flitv, flit[127:0], lcrdv}&#xa;tx.dat.{flitpend, flitv, flit[511:0], lcrdv}&#xa;tx.linkactiveack&#xa;rx.snp.{flitpend, flitv, flit[255:0], lcrdv}&#xa;rx.rsp.{flitpend, flitv, flit[127:0], lcrdv}&#xa;rx.dat.{flitpend, flitv, flit[511:0], lcrdv}&#xa;rx.linkactivereq&#xa;rxsactive（RX 通路激活）&#xa;syscoreq / syscoack（系统一致性握手）&#xa;────────────────────────────────────────&#xa;Flipped(PortIO)：tx/rx 方向对调，&#xa;即 Bridge 为接收方，Socket 为发送方" style="rounded=0;whiteSpace=pre;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=9;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="830" y="330" width="380" height="260" as="geometry" />
+        </mxCell>
+
+        <!-- Core 0 forwarding path box -->
+        <mxCell id="c0_path_box" value="Core 0 转发路径（Chisel &lt;&gt; 直接连线）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="640" width="360" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- io.s0(0) node in bridge -->
+        <mxCell id="b_s0_0" value="io.s0(0)&#xa;Flipped(PortIO)&#xa;（接收 Socket 0 Core 0 的远端流量）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="620" y="710" width="220" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- io.s1_inject node in bridge -->
+        <mxCell id="b_s1_inj" value="io.s1_inject&#xa;PortIO&#xa;（注入 Socket 1 OpenLLC rn[2]）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="900" y="710" width="220" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- bulk connect annotation for c0 fwd -->
+        <mxCell id="bulk_c0_label" value="io.s1_inject &lt;&gt; io.s0(0)&#xa;Chisel &lt;&gt; 双向批量连线&#xa;tx.* → (Bridge→S1 LLC)&#xa;rx.* ← (S1 LLC→Bridge)" style="text;html=1;strokeColor=#82b366;fillColor=#d5e8d4;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="695" y="800" width="250" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- io.s1(0) node in bridge -->
+        <mxCell id="b_s1_0" value="io.s1(0)&#xa;Flipped(PortIO)&#xa;（接收 Socket 1 Core 0 的远端流量）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="900" y="900" width="220" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- io.s0_inject node in bridge -->
+        <mxCell id="b_s0_inj" value="io.s0_inject&#xa;PortIO&#xa;（注入 Socket 0 OpenLLC rn[2]）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="620" y="900" width="220" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- bulk connect annotation for c0 reverse -->
+        <mxCell id="bulk_c0r_label" value="io.s0_inject &lt;&gt; io.s1(0)&#xa;Chisel &lt;&gt; 双向批量连线&#xa;tx.* → (Bridge→S0 LLC)&#xa;rx.* ← (S0 LLC→Bridge)" style="text;html=1;strokeColor=#82b366;fillColor=#d5e8d4;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="695" y="985" width="250" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Core 1 tie-off box -->
+        <mxCell id="c1_tioff_box" value="Core 1 Tie-Off 逻辑（tieOffFlipped）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="1090" width="360" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- io.s0(1) tie-off -->
+        <mxCell id="b_s0_1" value="io.s0(1) Tied Off&#xa;tx.*.lcrdv = false&#xa;rx.*.flit = 0&#xa;linkactiveack = false&#xa;rxsactive = false&#xa;syscoack = syscoreq" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="620" y="1160" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- io.s1(1) tie-off -->
+        <mxCell id="b_s1_1" value="io.s1(1) Tied Off&#xa;tx.*.lcrdv = false&#xa;rx.*.flit = 0&#xa;linkactiveack = false&#xa;rxsactive = false&#xa;syscoack = syscoreq" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="820" y="1160" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Fatal assert box -->
+        <mxCell id="fatal_box" value="$fatal 断言（仿真检查）&#xa;────────────────────&#xa;if io.s0(i).tx.req.flitv ||&#xa;   io.s0(i).tx.rsp.flitv ||&#xa;   io.s0(i).tx.dat.flitv&#xa;→ assert(!s0i_tx, &quot;core i emitted&quot;)&#xa;同样检查 io.s1(i)" style="rounded=0;whiteSpace=pre;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;align=left;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="1140" width="260" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- io.nodeID -->
+        <mxCell id="b_nodeid" value="io.nodeID = 512&#xa;（11-bit，CHI E.b NodeID）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="830" y="610" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- Socket 1 外框 -->
+        <!-- ============================================================ -->
+        <mxCell id="sock1" value="Socket 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=13;fontStyle=1;verticalAlign=top;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="1490" y="200" width="880" height="1200" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 1 Core 0 -->
+        <mxCell id="s1c0" value="Core 0（L2 RN-F）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1980" y="250" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 1 Core 0 CHI Demux -->
+        <mxCell id="s1c0_demux" value="CHI 地址分流器（Core 0）&#xa;route()+bind()&#xa;MMIO→NCB[0] / 本地→LLC / 远端→io_chi_remote[0]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1980" y="330" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- io_chi_remote[0] port on S1 -->
+        <mxCell id="s1_remote0_port" value="io_chi_remote[0]&#xa;PortIO&#xa;（远端地址流量出口）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1980" y="440" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 1 Core 1 -->
+        <mxCell id="s1c1" value="Core 1（L2 RN-F）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="250" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 1 Core 1 CHI Demux -->
+        <mxCell id="s1c1_demux" value="CHI 地址分流器（Core 1）&#xa;route()+bind()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="330" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- io_chi_remote[1] port on S1 -->
+        <mxCell id="s1_remote1_port" value="io_chi_remote[1]&#xa;（当前 Tied Off）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="420" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 1 OpenLLC -->
+        <mxCell id="s1_llc" value="OpenLLC（HN-F）&#xa;numRNs = NumCores+1&#xa;rn[0]←Core 0  rn[1]←Core 1&#xa;rn[2]←XSBridge inject（额外RN-F槽）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="760" width="380" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- io_chi_bridge_in on S1 -->
+        <mxCell id="s1_bridge_in" value="io_chi_bridge_in&#xa;Flipped(PortIO)&#xa;（Bridge inject 入口，连接 OpenLLC rn[2]）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="880" width="380" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 1 OpenNCB (LLC Bridge) -->
+        <mxCell id="s1_ncb" value="OpenNCB（SN-F，LLC内存桥）&#xa;CHI → AXI4 → DDR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="980" width="380" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 1 MMIO NCBs -->
+        <mxCell id="s1_mmio" value="OpenNCB MMIO Bridge[0/1]（每核一个）&#xa;CHI → AXI4 → 外设总线" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="1060" width="380" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Socket 1 DDR label -->
+        <mxCell id="s1_ddr" value="Socket 1 DDR&#xa;0x40_00000000 – 0x7F_FFFFFFFF" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="1140" width="380" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- Edges: Socket 0 Core 0 → Bridge s0(0) -->
+        <!-- ============================================================ -->
+        <mxCell id="e_s0r0_to_bridge" value="远端地址流量&#xa;（CHI REQ/RSP/DAT）" style="endArrow=block;endFill=1;strokeColor=#0070C0;strokeWidth=2;fontSize=8;align=center;" edge="1" parent="1" source="s0_remote0_port" target="b_s0_0">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="160" y="680" />
+              <mxPoint x="730" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Bridge s1_inject → Socket 1 bridge_in -->
+        <mxCell id="e_s1inj_to_s1" value="注入 Socket 1&#xa;OpenLLC rn[2]" style="endArrow=block;endFill=1;strokeColor=#0070C0;strokeWidth=2;fontSize=8;align=center;" edge="1" parent="1" source="b_s1_inj" target="s1_bridge_in">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1230" y="742" />
+              <mxPoint x="1710" y="910" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Socket 1 remote[0] → Bridge s1(0) -->
+        <mxCell id="e_s1r0_to_bridge" value="远端地址流量&#xa;（CHI REQ/RSP/DAT）" style="endArrow=block;endFill=1;strokeColor=#0070C0;strokeWidth=2;fontSize=8;align=center;" edge="1" parent="1" source="s1_remote0_port" target="b_s1_0">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2080" y="680" />
+              <mxPoint x="1300" y="680" />
+              <mxPoint x="1300" y="930" />
+              <mxPoint x="1220" y="930" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Bridge s0_inject → Socket 0 bridge_in -->
+        <mxCell id="e_s0inj_to_s0" value="注入 Socket 0&#xa;OpenLLC rn[2]" style="endArrow=block;endFill=1;strokeColor=#0070C0;strokeWidth=2;fontSize=8;align=center;" edge="1" parent="1" source="b_s0_inj" target="s0_bridge_in">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="730" y="965" />
+              <mxPoint x="540" y="965" />
+              <mxPoint x="540" y="910" />
+              <mxPoint x="440" y="910" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Core 0 bulk connect arrow in bridge -->
+        <mxCell id="e_c0_bulk" value="&lt;&gt; 直连" style="endArrow=block;endFill=1;strokeColor=#0070C0;strokeWidth=3;fontSize=10;fontStyle=1;" edge="1" parent="1" source="b_s0_0" target="b_s1_inj">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_c0r_bulk" value="&lt;&gt; 直连" style="endArrow=block;endFill=1;strokeColor=#0070C0;strokeWidth=3;fontSize=10;fontStyle=1;" edge="1" parent="1" source="b_s1_0" target="b_s0_inj">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Core 1 tie-off edges (dashed red) -->
+        <mxCell id="e_s0r1_tioff" value="Tied Off" style="endArrow=block;endFill=1;strokeColor=#FF0000;strokeWidth=2;dashed=1;fontSize=8;" edge="1" parent="1" source="s0_remote1_port" target="b_s0_1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="385" y="480" />
+              <mxPoint x="550" y="480" />
+              <mxPoint x="550" y="1210" />
+              <mxPoint x="700" y="1210" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e_s1r1_tioff" value="Tied Off" style="endArrow=block;endFill=1;strokeColor=#FF0000;strokeWidth=2;dashed=1;fontSize=8;" edge="1" parent="1" source="s1_remote1_port" target="b_s1_1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1620" y="470" />
+              <mxPoint x="1460" y="470" />
+              <mxPoint x="1460" y="1210" />
+              <mxPoint x="900" y="1210" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- S0 LLC to NCB edge -->
+        <mxCell id="e_s0_llc_ncb" value="CHI" style="endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=1.5;fontSize=8;" edge="1" parent="1" source="s0_llc" target="s0_ncb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_s1_llc_ncb" value="CHI" style="endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=1.5;fontSize=8;" edge="1" parent="1" source="s1_llc" target="s1_ncb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- bridge_in to LLC edges -->
+        <mxCell id="e_s0_bin_llc" value="" style="endArrow=block;endFill=1;strokeColor=#9673a6;strokeWidth=1.5;" edge="1" parent="1" source="s0_bridge_in" target="s0_llc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_s1_bin_llc" value="" style="endArrow=block;endFill=1;strokeColor=#9673a6;strokeWidth=1.5;" edge="1" parent="1" source="s1_bridge_in" target="s1_llc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- Phase roadmap box -->
+        <!-- ============================================================ -->
+        <mxCell id="roadmap" value="开发路线图（Roadmap）&#xa;────────────────────────────────&#xa;✅ Phase 1（当前）：Core 0 单核转发&#xa;   - Chisel &lt;&gt; 直连，无仲裁/TxnID 映射&#xa;   - Core 1+ 全部 Tied Off + $fatal 保护&#xa;&#xa;🔜 Phase 2：多核 N:1 仲裁&#xa;   - N-to-1 Arbiter + TxnID remap 表&#xa;   - L-credit 跨仲裁器管理&#xa;&#xa;🔜 Phase 3：目录扩展 + Snoop 转发&#xa;   - OpenLLC Directory 增加 bridge-present bit&#xa;   - 跨 Socket Snoop 生成与转发逻辑&#xa;&#xa;🔜 Phase 4：性能优化 + 形式验证" style="rounded=0;whiteSpace=pre;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="620" y="330" width="380" height="250" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- Link layer options note (for LVDS question) -->
+        <!-- ============================================================ -->
+        <mxCell id="linklayer" value="链路层接口选项（来自设计文档）&#xa;────────────────────────────────&#xa;Option A：直连导线（当前，同板/同芯片）&#xa;Option B：异步 FIFO 桥（CDC 跨时钟域）&#xa;Option C：SerDes（板间，LVDS 可作物理层）&#xa;Option D：UCIe（小芯片互联标准）&#xa;&#xa;注：当前实现为 Option A（同步直连）&#xa;板间使用 LVDS 须在 PortIO 外包裹&#xa;SerDes + 异步 FIFO 适配层（见下方说明）" style="rounded=0;whiteSpace=pre;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=10;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="330" width="380" height="260" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
