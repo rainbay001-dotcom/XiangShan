@@ -337,12 +337,12 @@ case class XSCoreParameters
       IssueBlockParams(Seq(
         ExeUnitParams(
           "ALU2",
-          Seq(AluCfg, I2fCfg, VSetRiWiCfg, VSetRiWvfCfg, I2vCfg),
-          Seq(IntWB(port = 2, 0), VfWB(4, 0), V0WB(port = 2, 0), FpWB(port = 0, 1)),
+          Seq(AluCfg) ++ (if (HasFPU) Seq(I2fCfg) else Seq()) ++ (if (HasVPU) Seq(VSetRiWiCfg, VSetRiWvfCfg, I2vCfg) else Seq()),
+          Seq(IntWB(port = 2, 0)) ++ (if (HasVPU) Seq(VfWB(4, 0), V0WB(port = 2, 0)) else Seq()) ++ (if (HasFPU) Seq(FpWB(port = 0, 1)) else Seq()),
           Seq(Seq(IntRD(4, 0)), Seq(IntRD(5, 0))),
           true,
           2,
-          vlWB = VlWB(port = intSchdVlWbPort, 0),
+          vlWB = if (HasVPU) VlWB(port = intSchdVlWbPort, 0) else null,
         ),
         ExeUnitParams("BJU2", Seq(BrhCfg, JmpCfg), Seq(), Seq(Seq(IntRD(5, 1)), Seq(IntRD(11, 2))))
       ), numEntries = 18, numEnq = 2, numComp = 10),
@@ -356,13 +356,13 @@ case class XSCoreParameters
         ExeUnitParams("ALU5", Seq(AluCfg, MulCfg), Seq(IntWB(port = 5, 0)), Seq(Seq(IntRD(10, 0)), Seq(IntRD(11, 1))), true, 2)
       ), numEntries = IssueQueueSize, numEnq = 2, numComp = IssueQueueCompEntrySize),
       IssueBlockParams(Seq(
-        ExeUnitParams("LDU0", Seq(LduCfg), Seq(IntWB(6, 0), FpWB(4, 0)), Seq(Seq(IntRD(7, 0))), true, 2),
+        ExeUnitParams("LDU0", Seq(LduCfg), Seq(IntWB(6, 0)) ++ (if (HasFPU) Seq(FpWB(4, 0)) else Seq()), Seq(Seq(IntRD(7, 0))), true, 2),
       ), numEntries = 20, numEnq = 2, numComp = 12),
       IssueBlockParams(Seq(
-        ExeUnitParams("LDU1", Seq(LduCfg), Seq(IntWB(7, 0), FpWB(5, 0)), Seq(Seq(IntRD(9, 0))), true, 2),
+        ExeUnitParams("LDU1", Seq(LduCfg), Seq(IntWB(7, 0)) ++ (if (HasFPU) Seq(FpWB(5, 0)) else Seq()), Seq(Seq(IntRD(9, 0))), true, 2),
       ), numEntries = 20, numEnq = 2, numComp = 12),
       IssueBlockParams(Seq(
-        ExeUnitParams("LDU2", Seq(LduCfg), Seq(IntWB(8, 0), FpWB(6, 0)), Seq(Seq(IntRD(11, 0))), true, 2),
+        ExeUnitParams("LDU2", Seq(LduCfg), Seq(IntWB(8, 0)) ++ (if (HasFPU) Seq(FpWB(6, 0)) else Seq()), Seq(Seq(IntRD(11, 0))), true, 2),
       ), numEntries = 20, numEnq = 2, numComp = 12),
       IssueBlockParams(Seq(
         ExeUnitParams("STA0", Seq(StaCfg, MouCfg), Seq(FakeIntWB()), Seq(Seq(IntRD(6, 1)))),
@@ -371,10 +371,10 @@ case class XSCoreParameters
         ExeUnitParams("STA1", Seq(StaCfg, MouCfg), Seq(FakeIntWB()), Seq(Seq(IntRD(8, 1)))),
       ), numEntries = 16, numEnq = 2, numComp = 12),
       IssueBlockParams(Seq(
-        ExeUnitParams("STD0", Seq(StdCfg, MoudCfg), Seq(), Seq(Seq(IntRD(0, 1), FpRD(12, 0)))),
+        ExeUnitParams("STD0", Seq(StdCfg, MoudCfg), Seq(), Seq(Seq(IntRD(0, 1)) ++ (if (HasFPU) Seq(FpRD(12, 0)) else Seq()))),
       ), numEntries = 16, numEnq = 2, numComp = 12),
       IssueBlockParams(Seq(
-        ExeUnitParams("STD1", Seq(StdCfg, MoudCfg), Seq(), Seq(Seq(IntRD(2, 1), FpRD(13, 0)))),
+        ExeUnitParams("STD1", Seq(StdCfg, MoudCfg), Seq(), Seq(Seq(IntRD(2, 1)) ++ (if (HasFPU) Seq(FpRD(13, 0)) else Seq()))),
       ), numEntries = 16, numEnq = 2, numComp = 12),
     ),
       numPregs = intPreg.numEntries,
@@ -461,11 +461,12 @@ case class XSCoreParameters
   def PregIdxWidthMax = intPreg.addrWidth max vfPreg.addrWidth
 
   def iqWakeUpParams = {
-    Seq(
+    (Seq(
       WakeUpConfig(
         Seq("ALU0", "ALU1", "ALU2", "ALU3", "ALU4", "ALU5", "LDU0", "LDU1", "LDU2") ->
         Seq("ALU0", "ALU1", "ALU2", "ALU3", "ALU4", "ALU5", "LDU0", "LDU1", "LDU2", "STA0", "STA1", "STD0", "STD1", "BJU0", "BJU1", "BJU2")
       ),
+    ) ++ (if (HasFPU) Seq(
       WakeUpConfig(
         Seq("FEX0", "FEX1", "FEX2", "FEX3") ->
         Seq("FEX0", "FEX1", "FEX2", "FEX3")
@@ -480,17 +481,16 @@ case class XSCoreParameters
         Seq("FEX0", "FEX1", "FEX2", "FEX3") ->
         Seq("STD0", "STD1")
       ),
+    ) else Seq())
     ).flatten
   }
 
   def fakeIntPreg = FakeIntPregParams(intPreg.numEntries, intPreg.numBank, intPreg.numRead, intPreg.numWrite)
 
   val backendParams: BackendParams = backend.BackendParams(
-    Map(
-      IntScheduler() -> (if (EnableBackendV2Config) backend.BackendV2SchdParams.intSchdParams else intSchdParams),
-      FpScheduler()  -> (if (EnableBackendV2Config) backend.BackendV2SchdParams.fpSchdParams else fpSchdParams),
-      VecScheduler() -> (if (EnableBackendV2Config) backend.BackendV2SchdParams.vecSchdParams else vecSchdParams),
-    ),
+    Map(IntScheduler() -> (if (EnableBackendV2Config) backend.BackendV2SchdParams.intSchdParams else intSchdParams)) ++
+    (if (HasFPU || EnableBackendV2Config) Map(FpScheduler() -> (if (EnableBackendV2Config) backend.BackendV2SchdParams.fpSchdParams else fpSchdParams)) else Map()) ++
+    (if (HasVPU || EnableBackendV2Config) Map(VecScheduler() -> (if (EnableBackendV2Config) backend.BackendV2SchdParams.vecSchdParams else vecSchdParams)) else Map()),
     Seq(
       intPreg,
       fpPreg,

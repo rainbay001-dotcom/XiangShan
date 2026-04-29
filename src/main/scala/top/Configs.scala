@@ -289,6 +289,16 @@ class TLMinimalConfig(n: Int = 1) extends Config(
 )
 class MinimalConfig(n: Int = 1) extends TLMinimalConfig(n) with DeprecatedConfigWarning
 
+// Config with FPU and VPU disabled (no floating-point or vector units)
+class NoVecFpConfig(n: Int = 1) extends Config(
+  new BaseConfig(n).alter((site, here, up) => {
+    case XSTileKey => up(XSTileKey).map(_.copy(
+      HasFPU = false,
+      HasVPU = false,
+    ))
+  })
+)
+
 // Non-synthesizable MinimalConfig, for fast simulation only
 class TLMinimalSimConfig(n: Int = 1) extends Config(
   new TLMinimalConfig(n).alter((site, here, up) => {
