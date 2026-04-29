@@ -525,6 +525,27 @@ class UncacheWordIO(implicit p: Parameters) extends DCacheBundle
   val resp = Flipped(DecoupledIO(new UncacheWordResp))
 }
 
+// NC AMO path bundles (AtomicsUnit <-> UncacheAtomicBuffer)
+class UncacheAtomicWordReq(implicit p: Parameters) extends DCacheBundle {
+  val cmd          = UInt(M_SZ.W)
+  val addr         = UInt(PAddrBits.W)
+  val data         = UInt(XLEN.W)      // swap/source value (rs2); W: Fill(2, rs2[31:0])
+  val cmp_data     = UInt(XLEN.W)      // compare value (rd); used by AMOCAS only
+  val mask         = UInt(DataBytes.W) // byte enable
+  val memBackTypeMM = Bool()
+}
+
+class UncacheAtomicWordResp(implicit p: Parameters) extends DCacheBundle {
+  val data  = UInt(XLEN.W)
+  val nderr = Bool()
+  val derr  = Bool()
+}
+
+class UncacheAtomicWordIO(implicit p: Parameters) extends DCacheBundle {
+  val req  = DecoupledIO(new UncacheAtomicWordReq)
+  val resp = Flipped(ValidIO(new UncacheAtomicWordResp))
+}
+
 class MainPipeResp(implicit p: Parameters) extends DCacheBundle {
   //distinguish amo
   val source  = UInt(sourceTypeWidth.W)
