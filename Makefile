@@ -71,8 +71,18 @@ endif
 JVM_XMX ?= 40G
 JVM_XSS ?= 256m
 
+# HTTP/HTTPS proxy for mill / Coursier (optional)
+# Usage: make verilog MILL_PROXY_HOST=10.88.1.127 MILL_PROXY_PORT=3128
+MILL_PROXY_PORT ?= 3128
+ifdef MILL_PROXY_HOST
+MILL_PROXY_ARGS = -Dhttps.proxyHost=$(MILL_PROXY_HOST) -Dhttp.proxyHost=$(MILL_PROXY_HOST) \
+                  -Dhttps.proxyPort=$(MILL_PROXY_PORT) -Dhttp.proxyPort=$(MILL_PROXY_PORT)
+else
+MILL_PROXY_ARGS =
+endif
+
 # mill arguments for build.sc
-MILL_BUILD_ARGS = -Djvm-xmx=$(JVM_XMX) -Djvm-xss=$(JVM_XSS)
+MILL_BUILD_ARGS = -Djvm-xmx=$(JVM_XMX) -Djvm-xss=$(JVM_XSS) $(MILL_PROXY_ARGS)
 
 # common chisel args
 MFC_ARGS = --target $(CHISEL_TARGET) \
