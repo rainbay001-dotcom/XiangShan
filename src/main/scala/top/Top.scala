@@ -365,20 +365,31 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
 
     withClockAndReset(io.clock, io.reset) {
       Option.when(enableCHI)(true.B).foreach { _ =>
+        // Instantiate the hierarchical HN sub-node (层级HN子节点):
+        //   L2 (RN) → CHIHNSubNode (HN to L2 / RN to OpenLLC) → OpenLLC (global HN)
+        val chiHNSubNode = Module(new CHIHNSubNode(core_with_l2.length))
+
         for ((core, i) <- core_with_l2.zipWithIndex) {
           val mmioLogger = CHILogger(s"L2[${i}]_MMIO", true)
-          val llcLogger = CHILogger(s"L2[${i}]_LLC", true)
+          // Logger between L2 (RN) and HN sub-node (presents as HN to L2)
+          val hnLogger   = CHILogger(s"L2[${i}]_HN", true)
+          // Logger between HN sub-node (presents as RN to OpenLLC) and OpenLLC
+          val llcLogger  = CHILogger(s"HN[${i}]_LLC", true)
           dontTouch(core.module.io.chi.get)
           bind(
             route(
               core.module.io.chi.get, Map((AddressSet(0x0L, 0x00007fffffffL), NumCores + i)) ++ AddressSet(0x0L,
               0xffffffffffffL).subtract(AddressSet(0x0L, 0x00007fffffffL)).map(addr => (addr, NumCores * 2)).toMap
             ),
-            Map((NumCores + i) -> mmioLogger.io.up, (NumCores * 2) -> llcLogger.io.up)
+            Map((NumCores + i) -> mmioLogger.io.up, (NumCores * 2) -> hnLogger.io.up)
           )
           chi_mmioBridge_opt(i).get.module.io.chi.connect(mmioLogger.io.down)
+          // L2 (RN) → HN sub-node: sub-node acts as HN to L2
+          chiHNSubNode.io.rnFromL2(i) <> hnLogger.io.down
+          // HN sub-node (RN) → OpenLLC: sub-node acts as RN to OpenLLC (global HN)
+          llcLogger.io.up <> chiHNSubNode.io.rnToOpenLLC(i)
           chi_openllc_opt.get.io.rn(i) <> llcLogger.io.down
-          require(core.module.io.chi.get.getWidth == llcLogger.io.up.getWidth)
+          require(core.module.io.chi.get.getWidth == hnLogger.io.up.getWidth)
           require(llcLogger.io.down.getWidth == chi_openllc_opt.get.io.rn(i).getWidth)
         }
         val memLogger = CHILogger(s"LLC_MEM", true)
