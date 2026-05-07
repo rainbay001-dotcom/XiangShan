@@ -319,7 +319,6 @@ bump:
 
 deps:
 	mill -i __.prepareOffline
-	mill -i xiangshan.resolveFirtoolDeps
 
 bsp:
 	mill -i mill.bsp.BSP/install
