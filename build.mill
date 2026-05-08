@@ -43,7 +43,8 @@ trait ChiselModule extends SbtModule with ScalafmtModule {
   def scalacPluginIvyDeps: T[Agg[Dep]] = Agg(ivy"org.chipsalliance:::chisel-plugin:7.3.0")
 
   def resolveFirtoolDeps = T {
-    firtoolresolver.Resolve(chisel3.BuildInfo.firtoolVersion.get, true) match {
+    val firtoolVersion = "1.146.0"
+    firtoolresolver.Resolve(firtoolVersion, true) match {
       case Right(bin) => bin.path.getAbsolutePath
       case Left(err)  => err
     }
