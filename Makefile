@@ -344,8 +344,11 @@ gsim: sim-verilog
 	$(MAKE) -C ./difftest emu GSIM=1 SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) RTL_SUFFIX=$(RTL_SUFFIX)
 
 # vcs simulation
+VCS_FLAGS ?=
+VCS_FLAGS += -kdb
+
 simv: sim-verilog
-	$(MAKE) -C ./difftest simv NUM_CORES=$(NUM_CORES) RTL_SUFFIX=$(RTL_SUFFIX)
+	$(MAKE) -C ./difftest simv NUM_CORES=$(NUM_CORES) RTL_SUFFIX=$(RTL_SUFFIX) VCS_FLAGS="$(VCS_FLAGS)"
 
 simv-run:
 	$(MAKE) -C ./difftest simv-run NUM_CORES=$(NUM_CORES) RTL_SUFFIX=$(RTL_SUFFIX)
