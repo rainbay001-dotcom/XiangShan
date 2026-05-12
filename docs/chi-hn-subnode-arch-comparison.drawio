@@ -1,0 +1,331 @@
+<mxfile host="app.diagrams.net" version="21.0.0" type="device">
+  <diagram id="chi-arch-comparison" name="XiangShan CHI 多层缓存架构对比">
+    <mxGraphModel dx="1600" dy="1050" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============================================================ -->
+        <!-- PANEL A: 原始架构 (f9daf7c, kunminghu-v3 基础分支)           -->
+        <!-- ============================================================ -->
+
+        <!-- Panel A Background -->
+        <mxCell id="2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0f4f8;strokeColor=#555555;strokeWidth=2;opacity=50;" vertex="1" parent="1">
+          <mxGeometry x="10" y="10" width="590" height="910" as="geometry"/>
+        </mxCell>
+
+        <!-- Panel A Title -->
+        <mxCell id="3" value="&lt;b style='font-size:16px'&gt;原始架构&lt;/b&gt;&lt;br/&gt;&lt;font color='#555555' style='font-size:11px'&gt;commit f9daf7c · kunminghu-v3 基础分支&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="18" width="480" height="52" as="geometry"/>
+        </mxCell>
+
+        <!-- A: CoreWithL2[i] (RN-F) -->
+        <mxCell id="10" value="&lt;b&gt;CoreWithL2[i]&lt;/b&gt; (RN-F)&lt;br/&gt;&lt;font style='font-size:10px'&gt;i = 0 .. N-1 &amp;nbsp;|&amp;nbsp; 含 L1D/L1I + L2 Cache + CHI 接口&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="90" y="85" width="420" height="58" as="geometry"/>
+        </mxCell>
+
+        <!-- A: route() diamond -->
+        <mxCell id="11" value="&lt;b&gt;route()&lt;/b&gt;&lt;br/&gt;地址路由分流" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="185" y="188" width="230" height="72" as="geometry"/>
+        </mxCell>
+
+        <!-- A: CHILogger L2_MMIO -->
+        <mxCell id="12" value="CHILogger&lt;br/&gt;&lt;b&gt;&quot;L2[i]_MMIO&quot;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="22" y="305" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- A: CHILogger L2_LLC -->
+        <mxCell id="13" value="CHILogger&lt;br/&gt;&lt;b&gt;&quot;L2[i]_LLC&quot;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="413" y="305" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- A: OpenNCB MMIO Bridge -->
+        <mxCell id="14" value="OpenNCB Bridge[i]&lt;br/&gt;&lt;font style='font-size:10px'&gt;MMIO (32 outstanding)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="22" y="400" width="165" height="52" as="geometry"/>
+        </mxCell>
+
+        <!-- A: OpenLLC (HN-F) -->
+        <mxCell id="15" value="&lt;b&gt;OpenLLC&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:10px'&gt;(HN-F · L3 Cache · 直连 RN)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="413" y="400" width="165" height="58" as="geometry"/>
+        </mxCell>
+
+        <!-- A: MMIO/Peripheral -->
+        <mxCell id="16" value="MMIO / 外设&lt;br/&gt;&lt;font style='font-size:10px'&gt;(AXI4 接口)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="22" y="496" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- A: CHILogger LLC_MEM -->
+        <mxCell id="17" value="CHILogger&lt;br/&gt;&lt;b&gt;&quot;LLC_MEM&quot;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="413" y="508" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- A: OpenNCB LLC Bridge -->
+        <mxCell id="18" value="OpenNCB LLC Bridge&lt;br/&gt;&lt;font style='font-size:10px'&gt;CHI → AXI4 (64 outstanding)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="413" y="603" width="165" height="52" as="geometry"/>
+        </mxCell>
+
+        <!-- A: DRAM -->
+        <mxCell id="19" value="DDR DRAM&lt;br/&gt;&lt;font style='font-size:10px'&gt;(主存 · 0x8000_0000+)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="413" y="698" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- A: Address annotation label -->
+        <mxCell id="45" value="&lt;b&gt;地址分流规则&lt;/b&gt;&lt;br/&gt;· MMIO: 0x0000_0000 ~ 0x7FFF_FFFF (低 2GB)&lt;br/&gt;· MEM: 0x8000_0000 ~ 0xFFFF_FFFF_FFFF" style="text;html=1;align=left;verticalAlign=top;strokeColor=#d6b656;fillColor=#fffde7;fontSize=10;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="22" y="800" width="556" height="58" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== PANEL A ARROWS ===== -->
+
+        <!-- Core → route() -->
+        <mxCell id="50" value="CHI (RN-F 发出)" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#444444;fontSize=10;" edge="1" source="10" target="11" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- route() → MMIO Logger (left) -->
+        <mxCell id="51" value="0x0 ~ 0x7FFF_FFFF" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#b85450;fontSize=10;" edge="1" source="11" target="12" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="185" y="224"/>
+              <mxPoint x="104" y="224"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- route() → LLC Logger (right) -->
+        <mxCell id="52" value="0x8000_0000+" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#82b366;fontSize=10;" edge="1" source="11" target="13" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="415" y="224"/>
+              <mxPoint x="495" y="224"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- MMIO Logger → MMIO Bridge -->
+        <mxCell id="53" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;" edge="1" source="12" target="14" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- LLC Logger → OpenLLC -->
+        <mxCell id="54" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="13" target="15" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- MMIO Bridge → MMIO/Periph -->
+        <mxCell id="55" value="AXI4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;fontSize=10;" edge="1" source="14" target="16" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- OpenLLC → LLC_MEM Logger -->
+        <mxCell id="56" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="15" target="17" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- LLC_MEM Logger → LLC Bridge -->
+        <mxCell id="57" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;" edge="1" source="17" target="18" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- LLC Bridge → DRAM -->
+        <mxCell id="58" value="AXI4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;fontSize=10;" edge="1" source="18" target="19" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+
+        <!-- ============================================================ -->
+        <!-- PANEL B: 当前架构（插入 CHIHNSubNode）                       -->
+        <!-- ============================================================ -->
+
+        <!-- Panel B Background -->
+        <mxCell id="4" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0f4f8;strokeColor=#555555;strokeWidth=2;opacity=50;" vertex="1" parent="1">
+          <mxGeometry x="630" y="10" width="650" height="910" as="geometry"/>
+        </mxCell>
+
+        <!-- Panel B Title -->
+        <mxCell id="5" value="&lt;b style='font-size:16px'&gt;当前架构（含 CHIHNSubNode）&lt;/b&gt;&lt;br/&gt;&lt;font color='#555555' style='font-size:11px'&gt;在 L2 与 OpenLLC 之间插入层级 HN 子节点&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="640" y="18" width="630" height="52" as="geometry"/>
+        </mxCell>
+
+        <!-- B: CoreWithL2[i] (RN-F) -->
+        <mxCell id="20" value="&lt;b&gt;CoreWithL2[i]&lt;/b&gt; (RN-F)&lt;br/&gt;&lt;font style='font-size:10px'&gt;i = 0 .. N-1 &amp;nbsp;|&amp;nbsp; 含 L1D/L1I + L2 Cache + CHI 接口&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="720" y="85" width="450" height="58" as="geometry"/>
+        </mxCell>
+
+        <!-- B: route() diamond -->
+        <mxCell id="21" value="&lt;b&gt;route()&lt;/b&gt;&lt;br/&gt;地址路由分流" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="840" y="188" width="230" height="72" as="geometry"/>
+        </mxCell>
+
+        <!-- B: CHILogger L2_MMIO -->
+        <mxCell id="22" value="CHILogger&lt;br/&gt;&lt;b&gt;&quot;L2[i]_MMIO&quot;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="645" y="305" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- B: CHILogger L2_HN (changed from L2_LLC) -->
+        <mxCell id="23" value="CHILogger&lt;br/&gt;&lt;b&gt;&quot;L2[i]_HN&quot;&lt;/b&gt; ★" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8d5f5;strokeColor=#9673a6;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="305" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- B: OpenNCB MMIO Bridge -->
+        <mxCell id="24" value="OpenNCB Bridge[i]&lt;br/&gt;&lt;font style='font-size:10px'&gt;MMIO (32 outstanding)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="645" y="400" width="165" height="52" as="geometry"/>
+        </mxCell>
+
+        <!-- B: CHIHNSubNode ★★★ (New node) -->
+        <mxCell id="25" value="&lt;b style='font-size:13px'&gt;★ CHIHNSubNode&lt;/b&gt;&lt;br/&gt;&lt;font color='#6a1095' style='font-size:11px'&gt;· 面向 CoreWithL2：HN-F&lt;/font&gt;&lt;br/&gt;&lt;font color='#6a1095' style='font-size:11px'&gt;· 面向 OpenLLC：RN&lt;/font&gt;&lt;br/&gt;&lt;font color='#888888' style='font-size:10px'&gt;当前：透明传递骨架&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="1085" y="395" width="175" height="92" as="geometry"/>
+        </mxCell>
+
+        <!-- B: MMIO/Peripheral -->
+        <mxCell id="26" value="MMIO / 外设&lt;br/&gt;&lt;font style='font-size:10px'&gt;(AXI4 接口)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="645" y="500" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- B: CHILogger HN_LLC (new) -->
+        <mxCell id="27" value="CHILogger&lt;br/&gt;&lt;b&gt;&quot;HN[i]_LLC&quot;&lt;/b&gt; ★" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8d5f5;strokeColor=#9673a6;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="533" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- B: OpenLLC (HN-F) -->
+        <mxCell id="28" value="&lt;b&gt;OpenLLC&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:10px'&gt;(HN-F · L3 Cache · 接 RN/SN)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="628" width="165" height="58" as="geometry"/>
+        </mxCell>
+
+        <!-- B: CHILogger LLC_MEM -->
+        <mxCell id="29" value="CHILogger&lt;br/&gt;&lt;b&gt;&quot;LLC_MEM&quot;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="732" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- B: OpenNCB LLC Bridge -->
+        <mxCell id="30" value="OpenNCB LLC Bridge&lt;br/&gt;&lt;font style='font-size:10px'&gt;CHI → AXI4 (64 outstanding)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="828" width="165" height="52" as="geometry"/>
+        </mxCell>
+
+        <!-- B: DRAM (outside panel, connected via arrow) -->
+        <mxCell id="31" value="DDR DRAM&lt;br/&gt;&lt;font style='font-size:10px'&gt;(主存 · 0x8000_0000+)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="920" width="165" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- B: Address annotation label -->
+        <mxCell id="46" value="&lt;b&gt;地址分流规则（同原始架构）&lt;/b&gt;&lt;br/&gt;· MMIO: 0x0000_0000 ~ 0x7FFF_FFFF (低 2GB)&lt;br/&gt;· MEM: 0x8000_0000 ~ 0xFFFF_FFFF_FFFF" style="text;html=1;align=left;verticalAlign=top;strokeColor=#9673a6;fillColor=#f5eeff;fontSize=10;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="645" y="800" width="400" height="58" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== PANEL B ARROWS ===== -->
+
+        <!-- Core → route() -->
+        <mxCell id="60" value="CHI (RN-F 发出)" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#444444;fontSize=10;" edge="1" source="20" target="21" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- route() → MMIO Logger -->
+        <mxCell id="61" value="0x0 ~ 0x7FFF_FFFF" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#b85450;fontSize=10;" edge="1" source="21" target="22" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="840" y="224"/>
+              <mxPoint x="727" y="224"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- route() → HN Logger -->
+        <mxCell id="62" value="0x8000_0000+" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#9673a6;fontSize=10;" edge="1" source="21" target="23" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1070" y="224"/>
+              <mxPoint x="1172" y="224"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- MMIO Logger → MMIO Bridge -->
+        <mxCell id="63" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;" edge="1" source="22" target="24" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- HN Logger → CHIHNSubNode -->
+        <mxCell id="64" value="对 L2 呈 HN-F" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontColor=#6a1095;fontSize=10;fontStyle=1;" edge="1" source="23" target="25" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- MMIO Bridge → MMIO/Periph -->
+        <mxCell id="65" value="AXI4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;fontSize=10;" edge="1" source="24" target="26" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- CHIHNSubNode → HN_LLC Logger -->
+        <mxCell id="66" value="对 OpenLLC 呈 RN" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontColor=#6a1095;fontSize=10;fontStyle=1;" edge="1" source="25" target="27" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- HN_LLC Logger → OpenLLC -->
+        <mxCell id="67" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="27" target="28" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- OpenLLC → LLC_MEM Logger -->
+        <mxCell id="68" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="28" target="29" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- LLC_MEM Logger → LLC Bridge -->
+        <mxCell id="69" value="" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;" edge="1" source="29" target="30" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- LLC Bridge → DRAM -->
+        <mxCell id="70" value="AXI4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;fontSize=10;" edge="1" source="30" target="31" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+
+        <!-- ============================================================ -->
+        <!-- LEGEND 图例                                                   -->
+        <!-- ============================================================ -->
+
+        <mxCell id="80" value="&lt;b&gt;图例 / Legend&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;strokeColor=none;fillColor=none;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="955" width="200" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend items -->
+        <mxCell id="81" value="CoreWithL2 / 处理核 (RN-F)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="20" y="988" width="200" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="82" value="CHILogger 调试日志模块" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="235" y="988" width="200" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="83" value="OpenLLC / L3 Cache (HN-F)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="450" y="988" width="200" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="84" value="OpenNCB Bridge (CHI↔AXI4)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="665" y="988" width="200" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="85" value="★ CHIHNSubNode (新增层级)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="880" y="988" width="200" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="86" value="MMIO / 外设" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1095" y="988" width="200" height="36" as="geometry"/>
+        </mxCell>
+
+
+        <!-- ============================================================ -->
+        <!-- CHI 协议节点角色说明框                                        -->
+        <!-- ============================================================ -->
+
+        <mxCell id="90" value="&lt;b&gt;CHI 协议节点角色说明&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;&lt;b&gt;RN (Request Node)&lt;/b&gt;：发起 CHI 事务的节点，如 CoreWithL2 (L2 侧) 和 CHIHNSubNode (OpenLLC 侧)&lt;br/&gt;&lt;br/&gt;&lt;b&gt;HN (Home Node)&lt;/b&gt;：负责缓存一致性仲裁，接收 RN 请求并协调 Snoop，如 OpenLLC 和 CHIHNSubNode (L2 侧)&lt;br/&gt;&lt;br/&gt;&lt;b&gt;SN (Slave Node)&lt;/b&gt;：响应 HN 下发的内存访问，通常对接 DRAM 控制器（OpenNCB LLC Bridge 扮演此角色）&lt;br/&gt;&lt;br/&gt;&lt;b&gt;CHIHNSubNode 双重角色&lt;/b&gt;：&lt;br/&gt;· 面向 CoreWithL2 (L2 侧) ＝ HN-F，接受 RN 请求&lt;br/&gt;· 面向 OpenLLC ＝ RN，向 OpenLLC (HN-F) 发起请求" style="text;html=1;align=left;verticalAlign=top;strokeColor=#555555;fillColor=#ffffff;fontSize=11;rounded=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="20" y="1040" width="740" height="185" as="geometry"/>
+        </mxCell>
+
+
+        <!-- ============================================================ -->
+        <!-- 关键差异标注框                                                -->
+        <!-- ============================================================ -->
+
+        <mxCell id="91" value="&lt;b&gt;架构关键差异（原始 vs 当前）&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;① CHILogger 名称变化：&lt;br/&gt;&amp;nbsp;&amp;nbsp;&quot;L2[i]_LLC&quot; → &quot;L2[i]_HN&quot;（面向HN）&lt;br/&gt;&lt;br/&gt;② 新增 CHIHNSubNode：&lt;br/&gt;&amp;nbsp;&amp;nbsp;双角色桥接层（HN-F ↔ RN）&lt;br/&gt;&lt;br/&gt;③ 新增 CHILogger &quot;HN[i]_LLC&quot;：&lt;br/&gt;&amp;nbsp;&amp;nbsp;HNSubNode 到 OpenLLC 的调试日志&lt;br/&gt;&lt;br/&gt;④ CHI 路径增加 1 跳：&lt;br/&gt;&amp;nbsp;&amp;nbsp;L2 → HNSubNode → OpenLLC&lt;br/&gt;&lt;br/&gt;⑤ 未来扩展点：集群目录 / Snoop 过滤 / 请求合并" style="text;html=1;align=left;verticalAlign=top;strokeColor=#9673a6;fillColor=#f5eeff;fontSize=11;rounded=1;spacing=5;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1040" width="500" height="185" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
