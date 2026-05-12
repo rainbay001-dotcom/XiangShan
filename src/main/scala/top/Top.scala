@@ -27,7 +27,7 @@ import utility._
 import utility.sram.SramBroadcastBundle
 import huancun.{HCCacheParameters, HCCacheParamsKey, HuanCun, PrefetchRecv, TPmetaResp}
 import coupledL2.EnableCHI
-import coupledL2.tl2chi.CHILogger
+import coupledL2.tl2chi.{CHILogger, PortIO}
 import openLLC.{OpenLLC, OpenLLCParamKey, OpenNCB}
 import openLLC.TargetBinder._
 import cc.xiangshan.openncb._
@@ -308,6 +308,11 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
         })))
       }
     )
+    val chi_hnSubNode_opt = Option.when(enableCHI)(
+      withClockAndReset(io.clock, io.reset) {
+        Module(new CHIHNSubNode(NumCores))
+      }
+    )
 
     // override LazyRawModuleImp's clock and reset
     childClock := io.clock
@@ -377,7 +382,10 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
             Map((NumCores + i) -> mmioLogger.io.up, (NumCores * 2) -> llcLogger.io.up)
           )
           chi_mmioBridge_opt(i).get.module.io.chi.connect(mmioLogger.io.down)
-          chi_openllc_opt.get.io.rn(i) <> llcLogger.io.down
+          val hnLogger = CHILogger(s"HN[${i}]_LLC", true)
+          chi_hnSubNode_opt.get.io.rnFromL2(i) <> llcLogger.io.down
+          hnLogger.io.up <> chi_hnSubNode_opt.get.io.rnToOpenLLC(i)
+          chi_openllc_opt.get.io.rn(i) <> hnLogger.io.down
           require(core.module.io.chi.get.getWidth == llcLogger.io.up.getWidth)
           require(llcLogger.io.down.getWidth == chi_openllc_opt.get.io.rn(i).getWidth)
         }
