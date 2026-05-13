@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git submodule*)"
+      "Bash(git submodule update*)",
+      "Bash(git submodule init*)",
+      "Bash(git submodule status*)"
     ]
   }
 }
