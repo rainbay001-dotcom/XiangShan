@@ -708,6 +708,55 @@ class TLFpgaDiffMinimalConfig(n: Int = 1) extends Config(
 )
 class FpgaDiffMinimalConfig(n: Int = 1) extends TLFpgaDiffMinimalConfig(n) with DeprecatedConfigWarning
 
+// Enable OPENLLC_NESTED: inserts an intermediate coherent cache between Core L2s and OpenLLC.
+// OPENLLC_NESTED presents itself as HN to Core L2s and as RN to OpenLLC.
+// Must be combined with a CHI config that already has OpenLLCParamsOpt defined.
+//
+// Also reconfigures OpenLLC to have a single RN port (for NESTED), since
+// NESTED aggregates all Core L2 traffic into one CHI RN connection.
+class WithOpenLLCNested(
+  ways: Int = 8,
+  sets: Int = 1024,
+  banks: Int = 2,
+  name: String = "LLC_NESTED"
+) extends Config((site, here, up) => {
+  case SoCParamsKey =>
+    val tiles = site(XSTileKey)
+    val clientDirBytes = tiles.map { t =>
+      t.L2NBanks * t.L2CacheParamsOpt.map(_.toCacheParams.capacity).getOrElse(0)
+    }.sum
+    // Capacity of NESTED (used as a client cache descriptor for OpenLLC's directory)
+    val nestedCacheParam = L2Param(
+      name = name,
+      ways = ways,
+      sets = sets * banks,
+      banks = banks
+    )
+    up(SoCParamsKey).copy(
+      // NESTED's own parameters: one entry per Core L2 as client
+      OpenLLCNestedParamsOpt = Option.when(up(EnableCHI))(OpenLLCParam(
+        name = name,
+        ways = ways,
+        sets = sets,
+        banks = banks,
+        fullAddressBits = 48,
+        clientCaches = tiles.map { core =>
+          val l2params = core.L2CacheParamsOpt.get
+          l2params.copy(sets = 2 * clientDirBytes / core.L2NBanks / l2params.ways / 64, ways = l2params.ways + 2)
+        }
+      )),
+      // OpenLLC sees NESTED as its single client (not individual Core L2s)
+      OpenLLCParamsOpt = up(SoCParamsKey).OpenLLCParamsOpt.map(_.copy(
+        clientCaches = Seq(nestedCacheParam)
+      ))
+    )
+})
+
+// CHIConfig with OPENLLC_NESTED enabled (NESTED acts as mid-level HN between Core L2 and OpenLLC)
+class CHINestedConfig(n: Int = 1) extends Config(
+  new WithOpenLLCNested() ++ new CHIConfig(n)
+)
+
 trait DeprecatedConfigWarning {
   val className = this.getClass().getSimpleName()
   val parentClassName = this.getClass().getSuperclass().getSimpleName()

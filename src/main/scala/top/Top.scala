@@ -30,6 +30,7 @@ import coupledL2.EnableCHI
 import coupledL2.tl2chi.CHILogger
 import openLLC.{OpenLLC, OpenLLCParamKey, OpenNCB}
 import openLLC.TargetBinder._
+import openllcnested.{OpenLLCNested, OpenLLCNestedParamKey}
 import cc.xiangshan.openncb._
 import system._
 import device._
@@ -309,6 +310,17 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
       }
     )
 
+    val chi_openllc_nested_opt = Option.when(enableCHI && soc.OpenLLCNestedParamsOpt.isDefined)(
+      withClockAndReset(io.clock, io.reset) {
+        Module(new OpenLLCNested()(p.alter((site, here, up) => {
+          case OpenLLCNestedParamKey => soc.OpenLLCNestedParamsOpt.get.copy(
+            hartIds = tiles.map(_.HartId),
+            FPGAPlatform = debugOpts.FPGAPlatform
+          )
+        })))
+      }
+    )
+
     // override LazyRawModuleImp's clock and reset
     childClock := io.clock
     childReset := reset_sync
@@ -365,6 +377,15 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
 
     withClockAndReset(io.clock, io.reset) {
       Option.when(enableCHI)(true.B).foreach { _ =>
+        // When OPENLLC_NESTED is enabled: Core L2 -> NESTED (HN) -> OpenLLC (HN) -> NCB -> Memory
+        // When disabled: Core L2 -> OpenLLC (HN) -> NCB -> Memory
+        //
+        // Node ID allocation:
+        //   Without NESTED: OpenLLC = NumCores*2
+        //   With    NESTED: NESTED  = NumCores*2, OpenLLC = NumCores*2+1
+        val llcNodeID    = NumCores * 2  // Core L2 always routes LLC traffic to NumCores*2 (NESTED or OpenLLC)
+        val openllcNodeID = if (chi_openllc_nested_opt.isDefined) NumCores * 2 + 1 else NumCores * 2
+
         for ((core, i) <- core_with_l2.zipWithIndex) {
           val mmioLogger = CHILogger(s"L2[${i}]_MMIO", true)
           val llcLogger = CHILogger(s"L2[${i}]_LLC", true)
@@ -372,26 +393,60 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
           bind(
             route(
               core.module.io.chi.get, Map((AddressSet(0x0L, 0x00007fffffffL), NumCores + i)) ++ AddressSet(0x0L,
-              0xffffffffffffL).subtract(AddressSet(0x0L, 0x00007fffffffL)).map(addr => (addr, NumCores * 2)).toMap
+              0xffffffffffffL).subtract(AddressSet(0x0L, 0x00007fffffffL)).map(addr => (addr, llcNodeID)).toMap
             ),
-            Map((NumCores + i) -> mmioLogger.io.up, (NumCores * 2) -> llcLogger.io.up)
+            Map((NumCores + i) -> mmioLogger.io.up, llcNodeID -> llcLogger.io.up)
           )
           chi_mmioBridge_opt(i).get.module.io.chi.connect(mmioLogger.io.down)
-          chi_openllc_opt.get.io.rn(i) <> llcLogger.io.down
-          require(core.module.io.chi.get.getWidth == llcLogger.io.up.getWidth)
-          require(llcLogger.io.down.getWidth == chi_openllc_opt.get.io.rn(i).getWidth)
+          chi_openllc_nested_opt match {
+            case Some(nested) =>
+              nested.io.rn(i) <> llcLogger.io.down
+              require(core.module.io.chi.get.getWidth == llcLogger.io.up.getWidth)
+              require(llcLogger.io.down.getWidth == nested.io.rn(i).getWidth)
+            case None =>
+              chi_openllc_opt.get.io.rn(i) <> llcLogger.io.down
+              require(core.module.io.chi.get.getWidth == llcLogger.io.up.getWidth)
+              require(llcLogger.io.down.getWidth == chi_openllc_opt.get.io.rn(i).getWidth)
+          }
         }
+
+        // Wire NESTED -> OpenLLC when NESTED is enabled.
+        // NESTED acts as RN toward OpenLLC; all LLC-addressed REQs route to openllcNodeID.
+        chi_openllc_nested_opt.foreach { nested =>
+          val nestedToLlcLogger = CHILogger(s"NESTED_LLC", true)
+          // Use the same bind/route mechanism as Core L2 → OpenLLC, but route all
+          // addresses to openllcNodeID since NESTED has no MMIO path of its own.
+          bind(
+            route(
+              nested.io.sn,
+              AddressSet(0x0L, 0xffffffffffffL).subtract(AddressSet(0x0L, 0x00007fffffffL))
+                .map(addr => (addr, openllcNodeID)).toMap ++
+                Map(AddressSet(0x0L, 0x00007fffffffL) -> openllcNodeID)
+            ),
+            Map(openllcNodeID -> nestedToLlcLogger.io.up)
+          )
+          chi_openllc_opt.get.io.rn(0) <> nestedToLlcLogger.io.down
+          nested.io.nodeID := llcNodeID.U
+          nested.io.debugTopDown.robHeadPaddr := core_with_l2.map(_.module.io.debugTopDown.robHeadPaddr)
+          core_with_l2.zip(nested.io.debugTopDown.addrMatch).foreach { case (tile, l3Match) =>
+            tile.module.io.debugTopDown.l3MissMatch := l3Match
+          }
+          core_with_l2.foreach(_.module.io.l3Miss := nested.io.l3Miss)
+        }
+
         val memLogger = CHILogger(s"LLC_MEM", true)
         chi_openllc_opt.get.io.sn.connect(memLogger.io.up)
         chi_llcBridge_opt.get.module.io.chi.connect(memLogger.io.down)
-        chi_openllc_opt.get.io.nodeID := (NumCores * 2).U
-        chi_openllc_opt.foreach { l3 =>
-          l3.io.debugTopDown.robHeadPaddr := core_with_l2.map(_.module.io.debugTopDown.robHeadPaddr)
+        chi_openllc_opt.get.io.nodeID := openllcNodeID.U
+        if (chi_openllc_nested_opt.isEmpty) {
+          chi_openllc_opt.foreach { l3 =>
+            l3.io.debugTopDown.robHeadPaddr := core_with_l2.map(_.module.io.debugTopDown.robHeadPaddr)
+          }
+          core_with_l2.zip(chi_openllc_opt.get.io.debugTopDown.addrMatch).foreach { case (tile, l3Match) =>
+            tile.module.io.debugTopDown.l3MissMatch := l3Match
+          }
+          core_with_l2.map(_.module.io.l3Miss := chi_openllc_opt.get.io.l3Miss)
         }
-        core_with_l2.zip(chi_openllc_opt.get.io.debugTopDown.addrMatch).foreach { case (tile, l3Match) =>
-          tile.module.io.debugTopDown.l3MissMatch := l3Match
-        }
-        core_with_l2.map(_.module.io.l3Miss := (if (chi_openllc_opt.nonEmpty) chi_openllc_opt.get.io.l3Miss else false.B))
       }
     }
 
