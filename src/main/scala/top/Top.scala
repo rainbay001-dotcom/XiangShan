@@ -298,14 +298,37 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
 
     val reset_sync = withClockAndReset(io.clock, io.reset) { ResetGen() }
     val jtag_reset_sync = withClockAndReset(io.systemjtag.jtag.TCK, io.systemjtag.reset) { ResetGen() }
+
+    // OPENLLC_NESTED is a CHI bridge that sits between L2 caches and OpenLLC.
+    //   - Acts as HN to CoreWithL2 (L2 sees NESTED as the LLC/home node).
+    //   - Acts as RN to OpenLLC  (OpenLLC sees NESTED as its sole client).
+    // OpenLLC is therefore configured with a single client entry (NESTED).
+    // NodeID allocation:
+    //   0 .. NumCores-1        : L2 caches (unchanged)
+    //   NumCores .. 2*NumCores-1 : per-core MMIO OpenNCB bridges (unchanged)
+    //   NumCores * 2           : OpenLLCNested (was OpenLLC's ID before)
+    //   NumCores * 2 + 1       : OpenLLC (one level up from NESTED)
+    val nestedNodeID  = NumCores * 2
+    val openllcNodeID = NumCores * 2 + 1
+
     val chi_openllc_opt = Option.when(enableCHI)(
       withClockAndReset(io.clock, io.reset) {
         Module(new OpenLLC()(p.alter((site, here, up) => {
           case OpenLLCParamKey => soc.OpenLLCParamsOpt.get.copy(
-            hartIds = tiles.map(_.HartId),
+            // OpenLLC now has exactly one client: OPENLLC_NESTED.
+            // Use a synthetic hartId of 0; adjust if OpenLLCParam.hartIds
+            // drives per-port behaviour that must match actual hart IDs.
+            hartIds = Seq(0),
             FPGAPlatform = debugOpts.FPGAPlatform
           )
         })))
+      }
+    )
+
+    // Instantiate OPENLLC_NESTED inside the same clock/reset domain as OpenLLC.
+    val chi_nested_opt = Option.when(enableCHI)(
+      withClockAndReset(io.clock, io.reset) {
+        Module(new OpenLLCNested(NumCores))
       }
     )
 
@@ -365,33 +388,55 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
 
     withClockAndReset(io.clock, io.reset) {
       Option.when(enableCHI)(true.B).foreach { _ =>
+        // Step 1: Route each L2's CHI port.
+        //   - MMIO traffic  → per-core OpenNCB bridge  (node IDs: NumCores..2*NumCores-1)
+        //   - LLC  traffic  → OpenLLCNested HN port    (node ID:  nestedNodeID)
         for ((core, i) <- core_with_l2.zipWithIndex) {
           val mmioLogger = CHILogger(s"L2[${i}]_MMIO", true)
-          val llcLogger = CHILogger(s"L2[${i}]_LLC", true)
+          val llcLogger  = CHILogger(s"L2[${i}]_LLC",  true)
           dontTouch(core.module.io.chi.get)
           bind(
             route(
-              core.module.io.chi.get, Map((AddressSet(0x0L, 0x00007fffffffL), NumCores + i)) ++ AddressSet(0x0L,
-              0xffffffffffffL).subtract(AddressSet(0x0L, 0x00007fffffffL)).map(addr => (addr, NumCores * 2)).toMap
+              core.module.io.chi.get,
+              Map((AddressSet(0x0L, 0x00007fffffffL), NumCores + i)) ++
+              AddressSet(0x0L, 0xffffffffffffL)
+                .subtract(AddressSet(0x0L, 0x00007fffffffL))
+                .map(addr => (addr, nestedNodeID)).toMap
             ),
-            Map((NumCores + i) -> mmioLogger.io.up, (NumCores * 2) -> llcLogger.io.up)
+            Map((NumCores + i) -> mmioLogger.io.up, nestedNodeID -> llcLogger.io.up)
           )
           chi_mmioBridge_opt(i).get.module.io.chi.connect(mmioLogger.io.down)
-          chi_openllc_opt.get.io.rn(i) <> llcLogger.io.down
+          // L2[i] LLC traffic → NESTED's HN port i (NESTED acts as HN to L2)
+          chi_nested_opt.get.io.hn(i) <> llcLogger.io.down
           require(core.module.io.chi.get.getWidth == llcLogger.io.up.getWidth)
-          require(llcLogger.io.down.getWidth == chi_openllc_opt.get.io.rn(i).getWidth)
+          require(llcLogger.io.down.getWidth == chi_nested_opt.get.io.hn(i).getWidth)
         }
+
+        // Step 2: Connect NESTED's RN port to OpenLLC's single RN port.
+        //   A logger sits between NESTED and OpenLLC for waveform visibility.
+        val nestedLLCLogger = CHILogger(s"NESTED_LLC", true)
+        chi_nested_opt.get.io.rn <> nestedLLCLogger.io.up
+        // OpenLLC now has only one client (NESTED), so use rn(0).
+        chi_openllc_opt.get.io.rn(0) <> nestedLLCLogger.io.down
+
+        // Step 3: OpenLLC → OpenNCB (DRAM bridge); unchanged from before.
         val memLogger = CHILogger(s"LLC_MEM", true)
         chi_openllc_opt.get.io.sn.connect(memLogger.io.up)
         chi_llcBridge_opt.get.module.io.chi.connect(memLogger.io.down)
-        chi_openllc_opt.get.io.nodeID := (NumCores * 2).U
+
+        // Step 4: Assign CHI node IDs.
+        chi_nested_opt.get.io.nodeID  := nestedNodeID.U
+        chi_openllc_opt.get.io.nodeID := openllcNodeID.U
+
+        // Step 5: Debug top-down signals — forwarded from NESTED to OpenLLC.
         chi_openllc_opt.foreach { l3 =>
           l3.io.debugTopDown.robHeadPaddr := core_with_l2.map(_.module.io.debugTopDown.robHeadPaddr)
         }
         core_with_l2.zip(chi_openllc_opt.get.io.debugTopDown.addrMatch).foreach { case (tile, l3Match) =>
           tile.module.io.debugTopDown.l3MissMatch := l3Match
         }
-        core_with_l2.map(_.module.io.l3Miss := (if (chi_openllc_opt.nonEmpty) chi_openllc_opt.get.io.l3Miss else false.B))
+        core_with_l2.map(_.module.io.l3Miss :=
+          (if (chi_openllc_opt.nonEmpty) chi_openllc_opt.get.io.l3Miss else false.B))
       }
     }
 

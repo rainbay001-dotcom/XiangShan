@@ -421,9 +421,21 @@ case class L3CacheConfig(size: String, ways: Int = 8, inclusive: Boolean = true,
         sets = sets,
         banks = banks,
         fullAddressBits = 48,
-        clientCaches = tiles.map { core =>
-          val l2params = core.L2CacheParamsOpt.get
-          l2params.copy(sets = 2 * clientDirBytes / core.L2NBanks / l2params.ways / 64, ways = l2params.ways + 2)
+        // With OPENLLC_NESTED inserted between L2 caches and OpenLLC, OpenLLC
+        // has exactly ONE client: the NESTED node.  NESTED aggregates all L2
+        // caches and presents itself to OpenLLC as a single virtual client.
+        //
+        // The snoop-filter size inside OpenLLC should cover the combined working
+        // set of all L2 caches managed by NESTED.  A conservative choice is to
+        // use the sum of L2 capacities; here we use the per-core maximum with
+        // extra ways for the snoop-filter overhead.
+        clientCaches = {
+          val allL2Sets  = tiles.map { core =>
+            val l2params = core.L2CacheParamsOpt.get
+            2 * clientDirBytes / core.L2NBanks / l2params.ways / 64
+          }.max
+          val allL2Ways  = tiles.map(_.L2CacheParamsOpt.get.ways).max + 2
+          Seq(L2Param(sets = allL2Sets, ways = allL2Ways))
         },
         enablePerf = !site(DebugOptionsKey).FPGAPlatform && site(DebugOptionsKey).EnablePerfDebug,
         elaboratedTopDown = !site(DebugOptionsKey).FPGAPlatform
