@@ -105,6 +105,11 @@ object openLLC extends ChiselModule {
   def moduleDeps = Seq(`rocket-chip`, utility, coupledL2, openNCB)
 }
 
+object openLLCNested extends ChiselModule {
+  def millSourcePath = pwd / "openLLCNested"
+  def moduleDeps = Seq(`rocket-chip`, utility, coupledL2, openLLC)
+}
+
 object difftest extends ChiselModule {
   object test extends SbtTests with TestModule.ScalaTest {
     override def sources: T[Seq[PathRef]] = Task.Sources {
@@ -136,6 +141,7 @@ object xiangshan extends ChiselModule {
     huancun,
     coupledL2,
     openLLC,
+    openLLCNested,
     yunsuan,
     utility,
     ChiselAIA,
