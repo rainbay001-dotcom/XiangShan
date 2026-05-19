@@ -1,0 +1,386 @@
+<mxGraphModel dx="1800" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1600" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- ===================== Title ===================== -->
+    <mxCell id="t1" value="OpenLLC (HN-F) 详细架构图 — XiangShan KunminghuV2" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="20" y="20" width="1660" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== RN Ports (Left, y=70..440) ===================== -->
+    <mxCell id="rn_label" value="CHI RN 上行接口&#xa;io.rn[0..N]" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;align=center;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="70" width="160" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="rn0" value="&lt;b&gt;io.rn[0]&lt;/b&gt;&#xa;Core 0 / CHIHNSubNode&#xa;TX: REQ(256b)/RSP(128b)/DAT(512b)&#xa;RX: SNP(256b)/RSP(128b)/DAT(512b)&#xa;linkactive* / rxsactive" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B7000;strokeColor=#6B5600;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="120" width="160" height="110" as="geometry" />
+    </mxCell>
+    <mxCell id="rn1" value="&lt;b&gt;io.rn[1]&lt;/b&gt;&#xa;Core 1 / CHIHNSubNode&#xa;TX: REQ(256b)/RSP(128b)/DAT(512b)&#xa;RX: SNP(256b)/RSP(128b)/DAT(512b)&#xa;linkactive* / rxsactive" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B7000;strokeColor=#6B5600;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="240" width="160" height="110" as="geometry" />
+    </mxCell>
+    <mxCell id="rnN" value="&lt;b&gt;io.rn[N]&lt;/b&gt;（可选）&#xa;双 Socket XSBridge&#xa;numRNs = NumCores + 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B5651D;strokeColor=#8B4500;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="370" width="160" height="80" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== RequestBuffer + RequestArbiter (x=200) ===================== -->
+    <mxCell id="rb" value="&lt;b&gt;RequestBuffer&lt;/b&gt;&#xa;接收各 RN REQ/SNP flit&#xa;按 srcID 排队，流控&#xa;lcrdv 信用计数回流" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4472C4;strokeColor=#2E5496;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="200" y="130" width="160" height="80" as="geometry" />
+    </mxCell>
+    <mxCell id="ra" value="&lt;b&gt;RequestArbiter&lt;/b&gt;&#xa;多路优先级仲裁：&#xa;① 新请求（来自 RB）&#xa;② MSHR retry 请求&#xa;③ Snoop 二次请求" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4472C4;strokeColor=#2E5496;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="200" y="250" width="160" height="100" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== MainPipe (swimlane container, x=385..1035, y=80..390) ===================== -->
+    <!-- S1-S4 are children with relative coords; inter-stage arrows are also relative -->
+    <mxCell id="pipe_bg" value="MainPipe（主流水线，4 级）" style="swimlane;startSize=28;fillColor=#7B5EA7;strokeColor=#5C3D7A;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="390" y="80" width="650" height="320" as="geometry" />
+    </mxCell>
+    <mxCell id="s1" value="&lt;b&gt;S1：地址解码 &amp; 索引&lt;/b&gt;&#xa;• 物理地址拆分：&#xa;  Bank[1:0] / Set[10:0] / Tag&#xa;• 发起 Directory SRAM 读&#xa;• 发起 DataStorage SRAM 读&#xa;• 生成 Way 选择候选" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7B5EA7;strokeColor=#5C3D7A;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="pipe_bg">
+      <mxGeometry x="10" y="40" width="150" height="270" as="geometry" />
+    </mxCell>
+    <mxCell id="s2" value="&lt;b&gt;S2：命中判定 &amp; 一致性决策&lt;/b&gt;&#xa;• tag 比对 → hit / miss&#xa;• 读取 State: I/SC/UC/UD/SD&#xa;• 确定操作类型：&#xa;  ReadShared / WriteBack / MakeUnique&#xa;• Miss：分配 MSHR 槽位&#xa;• Hit：准备 S3 直接响应&#xa;• 判断是否需要 Snoop" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7B5EA7;strokeColor=#5C3D7A;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="pipe_bg">
+      <mxGeometry x="170" y="40" width="150" height="270" as="geometry" />
+    </mxCell>
+    <mxCell id="s3" value="&lt;b&gt;S3：数据 &amp; 目录写回&lt;/b&gt;&#xa;• 命中读：从 DataSRAM 取数&#xa;  → 生成 CompData 发 RN&#xa;• 命中写：更新 DataSRAM&#xa;  + 更新 Directory State&#xa;• 缺失：写入 MSHR，等待：&#xa;  (a) Snoop 响应聚合&#xa;  (b) SN CompData 回填&#xa;• WB/Evict：无效化 + 释放" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7B5EA7;strokeColor=#5C3D7A;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="pipe_bg">
+      <mxGeometry x="320" y="40" width="150" height="270" as="geometry" />
+    </mxCell>
+    <mxCell id="s4" value="&lt;b&gt;S4：提交 &amp; 响应分发&lt;/b&gt;&#xa;• 向 ResponseUnit 发送：&#xa;  Comp / CompData /&#xa;  CompAck / DBIDResp&#xa;• 向 SnoopUnit 触发 Snoop&#xa;• 更新 MSHR 状态机&#xa;• 流水线反压（hazard）&#xa;  相同 Set 需等待前序完成" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7B5EA7;strokeColor=#5C3D7A;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="pipe_bg">
+      <mxGeometry x="480" y="40" width="150" height="270" as="geometry" />
+    </mxCell>
+    <!-- Pipeline inter-stage arrows (relative to pipe_bg) -->
+    <mxCell id="ps12" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#5C3D7A;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="s1" target="s2" parent="pipe_bg">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="ps23" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#5C3D7A;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="s2" target="s3" parent="pipe_bg">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="ps34" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#5C3D7A;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="s3" target="s4" parent="pipe_bg">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== TX Arbiter + RX Handler (x=1060) ===================== -->
+    <mxCell id="tx_arb" value="&lt;b&gt;TX Arbiter（发送仲裁）&lt;/b&gt;&#xa;向 io.sn（OpenNCB）输出：&#xa;• REQ：ReadNoSnp / WriteNoSnpFull&#xa;• DAT：NonCopyBackWrData&#xa;向各 RN 输出：&#xa;• RSP：Comp / DBIDResp / RetryAck&#xa;• DAT：CompData / RespSepData" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="1060" y="100" width="240" height="140" as="geometry" />
+    </mxCell>
+    <mxCell id="rx_hdlr" value="&lt;b&gt;RX Handler（下行接收）&lt;/b&gt;&#xa;从 io.sn 接收来自 OpenNCB 的响应：&#xa;• RX.RSP：Comp / DBIDResp&#xa;  → 通知 MSHR 内存写完成&#xa;• RX.DAT：CompData（内存读数据）&#xa;  → 送往 RefillBuffer 处理&#xa;lcrdv 信用回流控制发送速率" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="1060" y="260" width="240" height="130" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== SN Port (Right, x=1320) ===================== -->
+    <mxCell id="sn_label" value="CHI SN 下行接口&#xa;io.sn → OpenNCB" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;align=center;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="1320" y="70" width="160" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="sn" value="&lt;b&gt;io.sn&lt;/b&gt;&#xa;（→ OpenNCB LLC Bridge）&#xa;TX: REQ(256b) / DAT(512b)&#xa;RX: RSP(128b) / DAT(512b)&#xa;（OpenLLC 作为 Requester&#xa;向 SN 发起内存读写）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="1320" y="120" width="160" height="140" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Middle Row: Storage Modules (y=430) ===================== -->
+    <mxCell id="mshr" value="&lt;b&gt;MSHR Array（未命中状态保持寄存器）&lt;/b&gt;&#xa;每项跟踪一个 in-flight 缺失事务：&#xa;• addr / opcode / srcID / txnID&#xa;• state : 等待 Snoop / 等待内存 / 等待 CompAck…&#xa;• gotPendingSnp : Vec(numRNs.W) — Snoop 收齐位图&#xa;• gotDirtyData : Bool — 脏数据已收到&#xa;• dataBuffer : UInt(512.W) — 数据暂存&#xa;MSHR 满 → 向 RN 返回 RetryAck（反压）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B7000;strokeColor=#6B5600;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="430" width="280" height="180" as="geometry" />
+    </mxCell>
+    <mxCell id="dir" value="&lt;b&gt;Directory（目录 SRAM）&lt;/b&gt;&#xa;每 Cacheline 条目：&#xa;• valid : Bool&#xa;• tag   : UInt(tagBits.W)&#xa;• state : CHI State（5 bits）&#xa;  I / SC / UC / UD / SD&#xa;• clients : UInt(numRNs.W) — Sharer 位图&#xa;容量：8ways × 2048sets × 4banks = 524,288 项&#xa;S1 读 → S3/S4 写（单口 SRAM）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7B5EA7;strokeColor=#5C3D7A;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="310" y="430" width="290" height="180" as="geometry" />
+    </mxCell>
+    <mxCell id="data" value="&lt;b&gt;DataStorage（数据 SRAM）&lt;/b&gt;&#xa;• 每行 512-bit（64B per cacheline）&#xa;• 总容量：8w × 2048s × 4b × 64B = 4MB&#xa;• 分 bank 并行，减少访问冲突&#xa;• 支持 OddParity 数据校验&#xa;  （chiDataCheck 参数控制）&#xa;• S1 发读请求，S3 读结果 / 写数据&#xa;• RefillBuffer 回填后写入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="610" y="430" width="280" height="180" as="geometry" />
+    </mxCell>
+    <mxCell id="refill" value="&lt;b&gt;RefillBuffer（回填缓冲）&lt;/b&gt;&#xa;接收 SN (OpenNCB→DRAM) 返回的&#xa;CompData flit：&#xa;• 将 data 写入 DataStorage&#xa;• 更新对应 MSHR 的 dataBuffer&#xa;• 触发 MSHR 后续处理流程&#xa;  （组装 CompData 发 RN&#xa;   或先 Snoop 再转发）&#xa;• 支持多拍 Beat 拼接（512b）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="900" y="430" width="260" height="180" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Bottom Row: Snoop + Response (y=640) ===================== -->
+    <mxCell id="snoop" value="&lt;b&gt;SnoopUnit（Snoop 发射单元）&lt;/b&gt;&#xa;根据 MSHR + Directory Sharer 位图&#xa;生成 Snoop 命令发往 RN.RX.SNP：&#xa;• SnpShared      — 降权共享&#xa;• SnpUnique      — 独占/无效化&#xa;• SnpCleanInvalid — 强制无效化&#xa;• SnpMakeInvalid — 快速无效化&#xa;收集所有 SnpResp / SnpRespData：&#xa;• 更新 MSHR.gotPendingSnp 位图&#xa;• 携带脏数据 → 写入 DataStorage&#xa;全部 Snoop 响应到齐 → 解锁 MSHR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C0504D;strokeColor=#8B2C28;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="640" width="280" height="200" as="geometry" />
+    </mxCell>
+    <mxCell id="resp" value="&lt;b&gt;ResponseUnit（响应组装单元）&lt;/b&gt;&#xa;从 MainPipe S3（命中读）/ S4（提交）/ MSHR 接收指令，&#xa;组装 CHI 响应 flit 并发往 RN：&#xa;• Comp         — 写入/权限转换完成&#xa;• CompData     — 读命中时附数据&#xa;• CompAck      — 等待 RN Ack 确认&#xa;• RespSepData  — 先响应后发数据&#xa;• DBIDResp     — 写数据缓冲分配&#xa;• RetryAck     — 反压（MSHR 满）&#xa;也向 SN 发 ReadNoSnp / WriteNoSnpFull" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C0504D;strokeColor=#8B2C28;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="310" y="640" width="290" height="200" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Bottom Ports (y=870) ===================== -->
+    <mxCell id="nodeID" value="io.nodeID : UInt&#xa;= NumCores × 2&#xa;（本 HN 节点 ID）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C0504D;strokeColor=#8B2C28;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="310" y="870" width="150" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="l3Miss" value="io.l3Miss : Bool&#xa;（L3 缺失脉冲信号&#xa;→ 核心 l3MissMatch）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C0504D;strokeColor=#8B2C28;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="480" y="870" width="150" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Edges ===================== -->
+    <!-- RN → RequestBuffer -->
+    <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6B5600;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="rn0" target="rb" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6B5600;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" source="rn1" target="rb" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="190" y="290" />
+          <mxPoint x="190" y="170" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B4500;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" source="rnN" target="rb" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="190" y="400" />
+          <mxPoint x="190" y="190" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- RequestBuffer → RequestArbiter -->
+    <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2E5496;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="rb" target="ra" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- RequestArbiter → MainPipe (s1) -->
+    <mxCell id="e5" value="仲裁输出" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#5C3D7A;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="ra" target="s1" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- MainPipe S1 → Directory (S1读/S3写) -->
+    <mxCell id="e6" value="S1读/S3写" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#5C3D7A;endArrow=block;startArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" edge="1" source="s2" target="dir" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="620" y="410" />
+          <mxPoint x="400" y="410" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MainPipe S3 → DataStorage (S1读/S3写) -->
+    <mxCell id="e7" value="S1读/S3写" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;startArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="s3" target="data" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="780" y="410" />
+          <mxPoint x="750" y="410" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MainPipe S2 → MSHR (缺失分配) -->
+    <mxCell id="e8" value="缺失分配" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6B5600;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="s2" target="mshr" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="620" y="410" />
+          <mxPoint x="160" y="410" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MainPipe S3 → ResponseUnit (命中读，直接生成 CompData → ResponseUnit → TX Arbiter → io.rn) -->
+    <mxCell id="e_s3_resp" value="命中读→CompData" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#B5651D;fontColor=#B5651D;fontStyle=1;fontSize=9;endArrow=block;exitX=0.4;exitY=1;exitDx=0;exitDy=0;entryX=0.2;entryY=0;entryDx=0;entryDy=0;" edge="1" source="s3" target="resp" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="760" y="415" />
+          <mxPoint x="370" y="415" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MainPipe S4 → ResponseUnit (S4提交) -->
+    <mxCell id="e8b" value="S4提交" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B2C28;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="s4" target="resp" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="940" y="410" />
+          <mxPoint x="450" y="410" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MainPipe S4 → SnoopUnit (触发Snoop) -->
+    <mxCell id="e8c" value="触发Snoop" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B2C28;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="s4" target="snoop" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="940" y="410" />
+          <mxPoint x="160" y="410" />
+          <mxPoint x="160" y="640" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- MSHR → SnoopUnit (触发Snoop) -->
+    <mxCell id="e9" value="触发Snoop" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B2C28;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="mshr" target="snoop" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- MSHR → ResponseUnit (Miss完成响应) -->
+    <mxCell id="e10" value="Miss完成响应" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B2C28;endArrow=block;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" source="mshr" target="resp" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- MSHR → RequestArbiter (retry) -->
+    <mxCell id="e16" value="retry" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6B5600;dashed=1;endArrow=open;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;" edge="1" source="mshr" target="ra" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="10" y="430" />
+          <mxPoint x="10" y="350" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- SnoopUnit → RN0 (SNP→RN, dashed) -->
+    <mxCell id="e11" value="SNP→RN" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B2C28;dashed=1;endArrow=open;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;" edge="1" source="snoop" target="rn0" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="10" y="740" />
+          <mxPoint x="10" y="230" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- ResponseUnit → TX Arbiter (RSP/DAT for RN nodes) -->
+    <mxCell id="e11b" value="RSP/DAT for RN" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#548235;endArrow=block;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" source="resp" target="tx_arb" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="610" y="780" />
+          <mxPoint x="1050" y="780" />
+          <mxPoint x="1050" y="198" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- TX Arbiter → io.rn[0..N] (RSP/DAT output back to all RN nodes via tx.rsp / tx.dat) -->
+    <mxCell id="e_ta_rn" value="RSP/DAT→io.rn[0..N]" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#548235;fontStyle=1;fontSize=9;endArrow=block;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;" edge="1" source="tx_arb" target="rn0" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1050" y="170" />
+          <mxPoint x="1050" y="600" />
+          <mxPoint x="10" y="600" />
+          <mxPoint x="10" y="230" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- RefillBuffer → DataStorage (回填写入) -->
+    <mxCell id="e12" value="回填写入" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="refill" target="data" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- RefillBuffer → MSHR (数据就绪) -->
+    <mxCell id="e12b" value="数据就绪" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6B5600;endArrow=open;dashed=1;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;" edge="1" source="refill" target="mshr" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="890" y="480" />
+          <mxPoint x="310" y="480" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- ResponseUnit → TxArb (向SN发REQ/DAT) -->
+    <mxCell id="e15c" value="REQ/DAT for SN" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" source="resp" target="tx_arb" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="600" y="700" />
+          <mxPoint x="1050" y="700" />
+          <mxPoint x="1050" y="142" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- TxArb → SN (REQ/DAT→SN) -->
+    <mxCell id="e13" value="REQ/DAT→SN" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="tx_arb" target="sn" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- SN → RxHandler (RSP/DAT←SN) -->
+    <mxCell id="e14" value="RSP/DAT←SN" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="sn" target="rx_hdlr" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1310" y="190" />
+          <mxPoint x="1310" y="330" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- RxHandler → RefillBuffer (CompData): exit bottom, enter top-right, short vertical+horizontal path -->
+    <mxCell id="e15" value="CompData" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;" edge="1" source="rx_hdlr" target="refill" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1180" y="430" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- RefillBuffer → ResponseUnit (CompData数据就绪，触发响应组装): ③→④ 关键路径 -->
+    <!-- 路由：从 refill 底部出发 → 向下绕过所有中间行模块 → 从 resp 右侧进入 -->
+    <mxCell id="e_rb_resp" value="触发CompData响应" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B2C28;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.05;entryDx=0;entryDy=0;" edge="1" source="refill" target="resp" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1030" y="650" />
+          <mxPoint x="600" y="650" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- RxHandler → MSHR (写完成Comp) -->
+    <mxCell id="e15b" value="写完成Comp" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6B5600;dashed=1;endArrow=open;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.1;entryDx=0;entryDy=0;" edge="1" source="rx_hdlr" target="mshr" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1050" y="350" />
+          <mxPoint x="310" y="350" />
+          <mxPoint x="310" y="450" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- nodeID/l3Miss arrows pointing upward to indicate they're inputs -->
+    <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B2C28;endArrow=open;dashed=1;" edge="1" source="nodeID" target="resp" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Comparison Table (y=970) ===================== -->
+    <mxCell id="cmp_title" value="OpenLLC（CHI HN-F）vs. HuanCun（TileLink L3）对比" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;align=center;fontStyle=1;fontSize=13;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="970" width="820" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="ch0" value="对比项" style="text;html=1;fillColor=#4472C4;strokeColor=#2E5496;align=center;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1000" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="ch1" value="HuanCun（TileLink）" style="text;html=1;fillColor=#4472C4;strokeColor=#2E5496;align=center;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="170" y="1000" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="ch2" value="OpenLLC（CHI）" style="text;html=1;fillColor=#4472C4;strokeColor=#2E5496;align=center;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="380" y="1000" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="ch3" value="说明 / 影响" style="text;html=1;fillColor=#4472C4;strokeColor=#2E5496;align=center;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="590" y="1000" width="250" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="r1c0" value="互联协议" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1030" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="r1c1" value="TileLink（TL-C）" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="170" y="1030" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r1c2" value="CHI（E.b / AMBA5）" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="380" y="1030" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r1c3" value="面向 Arm CHI 生态，工业可移植性更强" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="590" y="1030" width="250" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="r2c0" value="双 Socket" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1060" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="r2c1" value="❌ 不支持" style="text;html=1;fillColor=#C0504D;strokeColor=#8B2C28;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="170" y="1060" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r2c2" value="✅ numRNs = N+1（XSBridge inject）" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="380" y="1060" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r2c3" value="额外 rn 槽接 XSBridge，实现双 Socket 一致性" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="590" y="1060" width="250" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="r3c0" value="L3 预取" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1090" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="r3c1" value="✅ BOP + TP + L3PrefetchReceiver" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="170" y="1090" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r3c2" value="❌ 当前无（OpenLLCParam 无 prefetch）" style="text;html=1;fillColor=#C0504D;strokeColor=#8B2C28;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="380" y="1090" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r3c3" value="HuanCun 预取更成熟；OpenLLC 预取待支持" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="590" y="1090" width="250" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="r4c0" value="数据校验" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1120" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="r4c1" value="✅ SECDED（tagECC + dataECC）" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="170" y="1120" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r4c2" value="CHI OddParity（chiDataCheck 配置）" style="text;html=1;fillColor=#8B7000;strokeColor=#6B5600;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="380" y="1120" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r4c3" value="OpenNCB 在 AXI4 侧具备奇偶校验" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="590" y="1120" width="250" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="r5c0" value="流水线深度" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1150" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="r5c1" value="3 级（S1/S2/S3）" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="170" y="1150" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r5c2" value="4 级（S1/S2/S3/S4-提交）" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="380" y="1150" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r5c3" value="S4 分离响应分发，降低关键路径压力" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="590" y="1150" width="250" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="r6c0" value="缓存包含性" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1180" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="r6c1" value="可配置（生产: 非包含）" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="170" y="1180" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r6c2" value="CHI 天然支持非包含，Sharer 位图追踪" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="380" y="1180" width="210" height="30" as="geometry"/></mxCell>
+    <mxCell id="r6c3" value="默认行为等价非包含（无强制 victim 无效）" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="590" y="1180" width="250" height="30" as="geometry"/></mxCell>
+
+    <!-- ===================== OpenLLCParam Box (Right, y=970) ===================== -->
+    <mxCell id="param_title" value="OpenLLCParam 核心参数" style="text;html=1;fillColor=#4472C4;strokeColor=#2E5496;align=center;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="870" y="970" width="390" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="params" value="case class OpenLLCParam(&#xa;  name           : String  = &quot;LLC&quot;,&#xa;  ways           : Int     = 8,       // 缓存路数&#xa;  sets           : Int     = 2048,    // 每 bank 组数&#xa;  banks          : Int     = 4,       // Bank 数 → 总 4MB&#xa;  fullAddressBits: Int     = 48,      // sv48 物理地址宽度&#xa;  clientCaches   : Seq[L2Param],      // 各 L2 参数&#xa;  hartIds        : Seq[Int] = Nil,    // 由 tiles 填入&#xa;  FPGAPlatform   : Boolean  = false,&#xa;  enablePerf     : Boolean  = false,  // 性能计数器开关&#xa;)" style="text;html=1;align=left;verticalAlign=top;fillColor=#4472C4;strokeColor=#2E5496;fontFamily=Courier New;fontSize=10;whiteSpace=pre;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="870" y="1000" width="390" height="200" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== CHI PortIO Detail Box (Far Right, y=970) ===================== -->
+    <mxCell id="portio_title" value="PortIO（CHI E.b）信号明细" style="text;html=1;fillColor=#8B7000;strokeColor=#6B5600;align=center;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="1280" y="970" width="380" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="portio" value="TX（HN 发给 RN 或 SN）:&#xa;  REQ: flitpend/flitv/flit(256b)/lcrdv&#xa;  RSP: flitpend/flitv/flit(128b)/lcrdv&#xa;  DAT: flitpend/flitv/flit(512b)/lcrdv&#xa;  linkactiveack : Bool&#xa;&#xa;RX（HN 从 RN 或 SN 接收）:&#xa;  SNP: flitpend/flitv/flit(256b)/lcrdv&#xa;  RSP: flitpend/flitv/flit(128b)/lcrdv&#xa;  DAT: flitpend/flitv/flit(512b)/lcrdv&#xa;  linkactivereq : Bool&#xa;&#xa;链路控制:&#xa;  rxsactive : Bool&#xa;  syscoreq  : Bool&#xa;  syscoack  : Bool" style="text;html=1;align=left;verticalAlign=top;fillColor=#8B7000;strokeColor=#6B5600;fontFamily=Courier New;fontSize=10;whiteSpace=pre;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="1280" y="1000" width="380" height="260" as="geometry" />
+    </mxCell>
+
+  </root>
+</mxGraphModel>
