@@ -1,0 +1,278 @@
+<mxGraphModel dx="1800" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1500" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- ===================== Title ===================== -->
+    <mxCell id="t1" value="OpenNCB（非一致性 CHI→AXI4 桥）详细架构图 — XiangShan KunminghuV2" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="20" y="20" width="1660" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Overview ===================== -->
+    <mxCell id="overview" value="&lt;b&gt;OpenNCB 角色：&lt;/b&gt; CHI 协议的 SN（Slave Node），接收来自 OpenLLC（HN-F）发出的 ReadNoSnp / WriteNoSnpFull 等请求，将其翻译为 AXI4 读/写事务发往 DRAM（或 MMIO）。&#xa;XiangShan 中部署两类实例：① LLC Bridge（outstandingDepth=64，接 DDR/HBM 主存）  ② MMIO Bridge × NumCores（outstandingDepth=32，接外设总线）" style="text;html=1;strokeColor=#2E5496;fillColor=#4472C4;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="70" width="1660" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== CHI SN Port (Left, y=150) ===================== -->
+    <mxCell id="chi_label" value="CHI SN 接口&#xa;（来自 OpenLLC io.sn）" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;align=center;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="150" width="160" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="chi_port" value="&lt;b&gt;CHI PortIO（SN 侧）&lt;/b&gt;&#xa;OpenNCB 以 &lt;b&gt;SN&lt;/b&gt; 身份接入 CHI&#xa;&#xa;RX（接收来自 HN 的请求）:&#xa;  REQ: flitv / flit(256b) / lcrdv&#xa;  DAT: flitv / flit(512b) / lcrdv&#xa;    （NonCopyBackWrData）&#xa;&#xa;TX（发送响应给 HN）:&#xa;  RSP: flitv / flit(128b) / lcrdv&#xa;    （DBIDResp / Comp / CompDBIDResp）&#xa;  DAT: flitv / flit(512b) / lcrdv&#xa;    （CompData 读数据返回）&#xa;&#xa;链路控制: linkactive{req,ack} / rxsactive" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B7000;strokeColor=#6B5600;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="200" width="200" height="260" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== AXI4 Master Port (Right, y=150) ===================== -->
+    <mxCell id="axi_label" value="AXI4 主接口&#xa;（→ DRAM / MMIO）" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;align=center;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="1530" y="150" width="160" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="axi_port" value="&lt;b&gt;AXI4 Master Interface&lt;/b&gt;&#xa;OpenNCB 作为 AXI4 Master&#xa;&#xa;写通道（W）:&#xa;  AW: addr / id / len / burst / cache&#xa;  W : data(256/512b) / strb / last&#xa;  B : bid / bresp（写响应）&#xa;&#xa;读通道（R）:&#xa;  AR: addr / id / len / burst / cache&#xa;  R : rid / rdata / rresp / rlast&#xa;&#xa;axiBurstAlwaysIncr=true → burst=INCR&#xa;writeNoError=true → 忽略 BRESP 错误" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="1530" y="200" width="160" height="260" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== RX REQ Decoder (x=240, y=150) ===================== -->
+    <mxCell id="rx_req" value="&lt;b&gt;RX REQ Decoder&lt;/b&gt;&#xa;解析 CHI REQ flit：&#xa;• 提取 Opcode / Addr / TxnID /&#xa;  SrcID / ReturnNID / MemAttr&#xa;• 区分操作类型：&#xa;  ReadNoSnp → 读路径&#xa;  WriteNoSnpFull → 写路径&#xa;  WriteNoSnpPtl → 写（含 ByteEn）&#xa;• OddParity 校验验证&#xa;• 分配 Outstanding Entry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B5651D;strokeColor=#8B4500;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="240" y="160" width="200" height="170" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== RX DAT Buffer (x=240, y=350) ===================== -->
+    <mxCell id="rx_dat" value="&lt;b&gt;RX DAT Buffer（写数据接收）&lt;/b&gt;&#xa;接收 HN 发来的 NonCopyBackWrData：&#xa;• 多 beat 拼接（64B，最多 2 beat）&#xa;• 按 TxnID 与 Outstanding Entry 关联&#xa;• 收齐后通知写流水线: wdatReady=1&#xa;• 数据奇偶校验（OddParity）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B5651D;strokeColor=#8B4500;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="240" y="350" width="200" height="120" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Outstanding Transaction Buffer (OTB) (x=460, y=140) ===================== -->
+    <mxCell id="otb_bg" value="Outstanding Transaction Buffer（OTB）" style="swimlane;startSize=30;fillColor=#8B7000;strokeColor=#6B5600;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="460" y="140" width="470" height="350" as="geometry" />
+    </mxCell>
+    <mxCell id="otb_entry" value="&lt;b&gt;每个 OTB Entry 字段：&lt;/b&gt;&#xa;  valid      : Bool         — 槽位占用&#xa;  entryID    : UInt         — 本地分配 ID（映射 AXI ARID/AWID）&#xa;  txnID      : UInt         — CHI TxnID（回填 RSP/DAT 用）&#xa;  srcID      : UInt         — CHI SrcID（RSP 发往目标）&#xa;  addr       : UInt(48.W)   — 请求物理地址&#xa;  isRead     : Bool         — 读(1) / 写(0) 标志&#xa;  dbidIssued : Bool         — DBIDResp 已发出&#xa;  wdatReady  : Bool         — 写数据已到达 RX DAT&#xa;  axiSent    : Bool         — AXI4 AR/AW+W 已发出&#xa;  axiDone    : Bool         — AXI4 R/B 响应已收到&#xa;  dataBuffer : Vec(8, UInt(64.W)) — 读数据暂存" style="text;html=1;align=left;verticalAlign=top;fillColor=#8B7000;strokeColor=#6B5600;fontFamily=Courier New;fontSize=10;whiteSpace=pre;fontColor=#FFFFFF;" vertex="1" parent="otb_bg">
+      <mxGeometry x="10" y="40" width="330" height="300" as="geometry" />
+    </mxCell>
+    <mxCell id="otb_ctrl" value="&lt;b&gt;Entry 分配 &amp; 释放：&lt;/b&gt;&#xa;• 空闲 Entry 分配给新 REQ&#xa;• OTB 满 → 发 RetryAck&#xa;• 读完成 / 写 Comp 后释放&#xa;LLC depth=64&#xa;MMIO depth=32" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8B7000;strokeColor=#6B5600;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="otb_bg">
+      <mxGeometry x="350" y="40" width="110" height="300" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Read Path (x=960, y=140) ===================== -->
+    <mxCell id="read_path" value="读路径（ReadNoSnp）" style="swimlane;startSize=28;fillColor=#4472C4;strokeColor=#2E5496;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="960" y="140" width="430" height="310" as="geometry" />
+    </mxCell>
+    <mxCell id="rp1" value="&lt;b&gt;① AXI4 AR 发送&lt;/b&gt;&#xa;• 从 OTB 取出地址 / entryID&#xa;• burst=INCR（axiBurstAlwaysIncr）&#xa;• len = size / AXI总线宽度 - 1&#xa;• 将 entryID 写入 ARID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4472C4;strokeColor=#2E5496;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="read_path">
+      <mxGeometry x="10" y="40" width="200" height="120" as="geometry" />
+    </mxCell>
+    <mxCell id="rp2" value="&lt;b&gt;② AXI4 R 数据接收&lt;/b&gt;&#xa;• 按 RID 匹配 OTB Entry&#xa;• 多 beat 拼接写入 dataBuffer&#xa;• rlast=1 → axiDone=1&#xa;• 触发 TX DAT 组装" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4472C4;strokeColor=#2E5496;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="read_path">
+      <mxGeometry x="220" y="40" width="200" height="120" as="geometry" />
+    </mxCell>
+    <mxCell id="rp3" value="&lt;b&gt;③ CHI CompData 发送&lt;/b&gt;&#xa;• 从 dataBuffer 取数据&#xa;• 按 CHI beat 拆分发出&#xa;  （512b → 最多 2 拍）&#xa;• 填入 TxnID / HomeNID&#xa;• 释放 OTB Entry&#xa;• OddParity 校验位生成" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4472C4;strokeColor=#2E5496;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="read_path">
+      <mxGeometry x="10" y="190" width="200" height="110" as="geometry" />
+    </mxCell>
+    <!-- Read path internal arrows -->
+    <mxCell id="rp12a" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2E5496;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="rp1" target="rp2" parent="read_path">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="rp23a" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2E5496;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="rp2" target="rp3" parent="read_path">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="320" y="160" />
+          <mxPoint x="110" y="160" />
+          <mxPoint x="110" y="190" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- ===================== Write Path (x=960, y=475) ===================== -->
+    <mxCell id="write_path" value="写路径（WriteNoSnpFull）" style="swimlane;startSize=28;fillColor=#548235;strokeColor=#375623;fontStyle=1;fontSize=11;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="960" y="480" width="430" height="330" as="geometry" />
+    </mxCell>
+    <mxCell id="wp1" value="&lt;b&gt;① CHI DBIDResp 发送&lt;/b&gt;&#xa;• 收到 WriteNoSnpFull REQ 后&#xa;• 立即返回 DBIDResp&#xa;• 向 HN 表示「准备好接收数据」&#xa;• MMIO: ReadReceipt 先于 DBIDResp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="write_path">
+      <mxGeometry x="10" y="40" width="200" height="120" as="geometry" />
+    </mxCell>
+    <mxCell id="wp2" value="&lt;b&gt;② 等待 CHI 写数据&lt;/b&gt;&#xa;• 接收 HN DAT: NonCopyBackWrData&#xa;• RX DAT Buffer 拼接成完整行&#xa;• 通知 OTB: wdatReady=1&#xa;• writeCancelable=false →&#xa;  一旦分配不可撤销" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="write_path">
+      <mxGeometry x="220" y="40" width="200" height="120" as="geometry" />
+    </mxCell>
+    <mxCell id="wp3" value="&lt;b&gt;③ AXI4 AW+W 发送&lt;/b&gt;&#xa;• wdatReady=1 后发 AW+W&#xa;• axiMasterOrder=WriteAddress&#xa;  → AW 严格先于 W（LLC 配置）&#xa;• axiMasterOrder=None&#xa;  → AW/W 可并行（MMIO 配置）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="write_path">
+      <mxGeometry x="10" y="190" width="200" height="120" as="geometry" />
+    </mxCell>
+    <mxCell id="wp4" value="&lt;b&gt;④ AXI4 B 响应 + CHI Comp&lt;/b&gt;&#xa;• 收到 AXI4 B 通道的 bresp&#xa;• writeNoError=true →&#xa;  不上报 bresp 错误给 HN&#xa;• 向 HN 发 CHI Comp 响应&#xa;• 释放 OTB Entry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="write_path">
+      <mxGeometry x="220" y="190" width="200" height="120" as="geometry" />
+    </mxCell>
+    <!-- Write path internal arrows -->
+    <mxCell id="wp12a" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="wp1" target="wp2" parent="write_path">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="wp23a" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="wp2" target="wp3" parent="write_path">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="320" y="170" />
+          <mxPoint x="110" y="170" />
+          <mxPoint x="110" y="190" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="wp34a" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="wp3" target="wp4" parent="write_path">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== TX RSP/DAT Arbiter (x=460, y=530) ===================== -->
+    <mxCell id="tx_arb" value="&lt;b&gt;TX RSP / TX DAT 仲裁发送&lt;/b&gt;&#xa;• RSP 队列：DBIDResp / Comp / CompDBIDResp / RetryAck&#xa;• DAT 队列：CompData（读数据，多 beat）&#xa;• 优先级：RSP &gt; DAT（避免 HN 超时）&#xa;• lcrdv 信用管理（CHI 流量控制）&#xa;• OddParity 校验位附加" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B5651D;strokeColor=#8B4500;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="460" y="530" width="440" height="120" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== AXI4 Channel Arbiter (x=960, y=840) ===================== -->
+    <mxCell id="axi_arb" value="&lt;b&gt;AXI4 通道仲裁器&lt;/b&gt;&#xa;• AR 通道：多个读请求排队，按 ID 顺序发出&#xa;• AW / W 通道：写地址 + 数据顺序控制&#xa;  axiMasterOrder = WriteAddress → AW 先行（LLC 配置）&#xa;  axiMasterOrder = None → AW/W 可乱序（MMIO 配置）&#xa;• AXI ID 管理：entryID → ARID/AWID 映射，确保响应回溯" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;align=left;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="960" y="840" width="440" height="120" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Edges ===================== -->
+    <!-- chi_port RX.REQ → rx_req -->
+    <mxCell id="fe1" value="RX.REQ" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B4500;endArrow=block;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="chi_port" target="rx_req" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <!-- chi_port RX.DAT → rx_dat -->
+    <mxCell id="fe2" value="RX.DAT" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B4500;endArrow=block;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="chi_port" target="rx_dat" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- rx_req → OTB (分配 Entry) -->
+    <mxCell id="fe3" value="分配 Entry" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B4500;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" source="rx_req" target="otb_bg" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <!-- rx_dat → OTB (写数据就绪) -->
+    <mxCell id="fe4" value="写数据就绪" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B4500;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.8;entryDx=0;entryDy=0;" edge="1" source="rx_dat" target="otb_bg" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- OTB → read_path (读请求) -->
+    <mxCell id="fe5" value="读请求" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2E5496;endArrow=block;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" source="otb_bg" target="read_path" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <!-- OTB → write_path (写请求) -->
+    <mxCell id="fe6" value="写请求" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" source="otb_bg" target="write_path" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="950" y="460" />
+          <mxPoint x="950" y="530" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- read_path → tx_arb (CompData) -->
+    <mxCell id="fe7" value="CompData" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2E5496;endArrow=block;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" edge="1" source="read_path" target="tx_arb" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="970" y="460" />
+          <mxPoint x="600" y="460" />
+          <mxPoint x="600" y="530" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <!-- write_path → tx_arb (DBIDResp + Comp) -->
+    <mxCell id="fe8" value="DBIDResp/Comp" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.7;entryY=0;entryDx=0;entryDy=0;" edge="1" source="write_path" target="tx_arb" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="950" y="640" />
+          <mxPoint x="770" y="640" />
+          <mxPoint x="770" y="650" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- tx_arb → chi_port (TX RSP/DAT → HN) -->
+    <mxCell id="fe9" value="TX RSP/DAT→HN" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#8B4500;dashed=1;endArrow=open;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.6;entryDx=0;entryDy=0;" edge="1" source="tx_arb" target="chi_port" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="450" y="590" />
+          <mxPoint x="230" y="590" />
+          <mxPoint x="230" y="360" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- read_path → axi_arb (AR) -->
+    <mxCell id="fe10" value="AR 发出" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2E5496;endArrow=block;exitX=0.3;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" edge="1" source="read_path" target="axi_arb" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1090" y="460" />
+          <mxPoint x="1090" y="840" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <!-- axi_arb → read_path (R 数据返回) -->
+    <mxCell id="fe10b" value="R 数据返回" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#2E5496;dashed=1;endArrow=open;exitX=0.4;exitY=0;exitDx=0;exitDy=0;entryX=0.4;entryY=1;entryDx=0;entryDy=0;" edge="1" source="axi_arb" target="read_path" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1140" y="840" />
+          <mxPoint x="1140" y="460" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- write_path → axi_arb (AW/W) -->
+    <mxCell id="fe11" value="AW/W 发出" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.6;entryY=0;entryDx=0;entryDy=0;" edge="1" source="write_path" target="axi_arb" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1180" y="820" />
+          <mxPoint x="1220" y="820" />
+          <mxPoint x="1220" y="840" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <!-- axi_arb → write_path (B 响应) -->
+    <mxCell id="fe11b" value="B 响应" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;dashed=1;endArrow=open;exitX=0.7;exitY=0;exitDx=0;exitDy=0;entryX=0.7;entryY=1;entryDx=0;entryDy=0;" edge="1" source="axi_arb" target="write_path" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1270" y="840" />
+          <mxPoint x="1270" y="820" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- axi_arb → axi_port (AXI4 Master) -->
+    <mxCell id="fe12" value="AXI4 AR/AW/W" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#375623;endArrow=block;startArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" source="axi_arb" target="axi_port" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1410" y="900" />
+          <mxPoint x="1520" y="900" />
+          <mxPoint x="1520" y="380" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- ===================== Two Instance Comparison Table (y=1010) ===================== -->
+    <mxCell id="inst_title" value="XiangShan 中 OpenNCB 两类实例对比" style="text;html=1;strokeColor=#8B4500;fillColor=#B5651D;align=center;fontStyle=1;fontSize=13;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="20" y="1010" width="810" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="ih0" value="参数" style="text;html=1;fillColor=#B5651D;strokeColor=#8B4500;align=center;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1040" width="180" height="30" as="geometry"/></mxCell>
+    <mxCell id="ih1" value="LLC Bridge（内存主存）" style="text;html=1;fillColor=#B5651D;strokeColor=#8B4500;align=center;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="200" y="1040" width="290" height="30" as="geometry"/></mxCell>
+    <mxCell id="ih2" value="MMIO Bridge × N（外设）" style="text;html=1;fillColor=#B5651D;strokeColor=#8B4500;align=center;fontStyle=1;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="490" y="1040" width="340" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="ir1a" value="outstandingDepth" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1070" width="180" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir1b" value="64" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="200" y="1070" width="290" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir1c" value="32" style="text;html=1;fillColor=#8B7000;strokeColor=#6B5600;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="490" y="1070" width="340" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="ir2a" value="axiMasterOrder" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1100" width="180" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir2b" value="WriteAddress（AW 严格先于 W）" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="200" y="1100" width="290" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir2c" value="None（AW/W 可乱序，提升并发）" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="490" y="1100" width="340" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="ir3a" value="acceptMemAttrDevice" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1130" width="180" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir3b" value="false（仅 Normal 类型内存属性）" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="200" y="1130" width="290" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir3c" value="true（接受 Device 类属性，用于外设）" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="490" y="1130" width="340" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="ir4a" value="readReceiptAfterAcception" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1160" width="180" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir4b" value="false" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="200" y="1160" width="290" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir4c" value="true（ReadReceipt 接受后立即返回，减少延迟）" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="490" y="1160" width="340" height="30" as="geometry"/></mxCell>
+
+    <mxCell id="ir5a" value="acceptOrderEndpoint" style="text;html=1;fillColor=#737373;strokeColor=#4D4D4D;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="20" y="1190" width="180" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir5b" value="false" style="text;html=1;fillColor=#fff;strokeColor=#999999;fontSize=10;" vertex="1" parent="1"><mxGeometry x="200" y="1190" width="290" height="30" as="geometry"/></mxCell>
+    <mxCell id="ir5c" value="true（接受 Ordered 请求，保序语义）" style="text;html=1;fillColor=#548235;strokeColor=#375623;fontSize=10;fontColor=#FFFFFF;" vertex="1" parent="1"><mxGeometry x="490" y="1190" width="340" height="30" as="geometry"/></mxCell>
+
+    <!-- ===================== Transaction Flow (Right side, y=1010) ===================== -->
+    <mxCell id="flow_title" value="关键事务时序流程" style="text;html=1;fillColor=#4472C4;strokeColor=#2E5496;align=center;fontStyle=1;fontSize=13;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="880" y="1010" width="800" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="flow_read" value="&lt;b&gt;读事务（ReadNoSnp）&lt;/b&gt;&#xa;&#xa;OpenLLC(HN) → OpenNCB(SN) → DRAM&#xa;&#xa;① HN  TX.REQ: ReadNoSnp(addr, TxnID=T)&#xa;② SN  分配 OTB Entry，发 AXI4 AR(ARID=EntryID)&#xa;③ DRAM AXI4 R: data（rlast=1）&#xa;④ SN  组装 CompData：填 TxnID=T / HomeNID&#xa;⑤ SN  TX.DAT: CompData（512b，最多 2 拍）&#xa;⑥ HN  收到 CompData → 完成 Miss 处理" style="text;html=1;align=left;verticalAlign=top;fillColor=#4472C4;strokeColor=#2E5496;fontFamily=Courier New;fontSize=10;whiteSpace=pre;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="880" y="1040" width="390" height="180" as="geometry" />
+    </mxCell>
+    <mxCell id="flow_write" value="&lt;b&gt;写事务（WriteNoSnpFull）&lt;/b&gt;&#xa;&#xa;OpenLLC(HN) → OpenNCB(SN) → DRAM&#xa;&#xa;① HN  TX.REQ: WriteNoSnpFull(addr, TxnID=T)&#xa;② SN  分配 OTB Entry，发 TX.RSP: DBIDResp(DBID=EntryID)&#xa;③ HN  TX.DAT: NonCopyBackWrData(data, DBID)&#xa;④ SN  写数据到达：wdatReady=1&#xa;⑤ SN  AXI4 AW(AWID=EntryID) + W(data, last=1)&#xa;⑥ DRAM AXI4 B: bresp=OKAY&#xa;⑦ SN  TX.RSP: Comp(TxnID=T)&#xa;⑧ HN  收到 Comp → 完成写回处理" style="text;html=1;align=left;verticalAlign=top;fillColor=#548235;strokeColor=#375623;fontFamily=Courier New;fontSize=10;whiteSpace=pre;fontColor=#FFFFFF;" vertex="1" parent="1">
+      <mxGeometry x="1290" y="1040" width="390" height="200" as="geometry" />
+    </mxCell>
+
+  </root>
+</mxGraphModel>
