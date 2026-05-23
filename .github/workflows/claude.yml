@@ -46,7 +46,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          submodules: 'recursive'
           # Full history so Claude can see all branches/commits, not
           # just the tip of the default branch (default fetch-depth=1
           # hid commit 6a0f8fa and the entire feat/nvme-swap branch).
