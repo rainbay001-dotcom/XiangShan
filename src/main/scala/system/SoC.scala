@@ -86,6 +86,7 @@ case class SoCParameters
     sets = 2048 // 1MB per bank
   )),
   OpenLLCParamsOpt: Option[OpenLLCParam] = None,
+  OpenLLCNestedParamsOpt: Option[OpenLLCParam] = None,
   XSTopPrefix: Option[String] = None,
   NodeIDWidthList: Map[String, Int] = Map(
     "B" -> 7,
@@ -129,6 +130,10 @@ case class SoCParameters
   require(
     L3CacheParamsOpt.isDefined ^ OpenLLCParamsOpt.isDefined || L3CacheParamsOpt.isEmpty && OpenLLCParamsOpt.isEmpty,
     "Atmost one of L3CacheParamsOpt and OpenLLCParamsOpt should be defined"
+  )
+  require(
+    OpenLLCNestedParamsOpt.isEmpty || OpenLLCParamsOpt.isDefined,
+    "OpenLLCNestedParamsOpt requires OpenLLCParamsOpt to be defined"
   )
   require(
     !UsePrivateClint || (SeperateBus != top.SeperatedBusType.NONE),
