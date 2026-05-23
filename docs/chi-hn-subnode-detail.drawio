@@ -1,0 +1,232 @@
+<mxGraphModel dx="1800" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1600" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- ===================== Title ===================== -->
+    <mxCell id="title" value="CHIHNSubNode 详细设计图 — XiangShan KunminghuV3（CHI E.b）" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="20" y="20" width="1860" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== §1 Top.scala 集成上下文 (y=65) ===================== -->
+    <mxCell id="ctx_title" value="§1  在 Top.scala 中的集成位置（双核示例）" style="text;html=1;strokeColor=#555555;align=left;fontStyle=1;fontSize=12;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="70" width="650" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- Context: L2 cores -->
+    <mxCell id="l2_0" value="&lt;b&gt;CoreWithL2[0]&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=11;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="110" width="140" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="l2_1" value="&lt;b&gt;CoreWithL2[1]&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=11;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="200" width="140" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- Loggers before HN -->
+    <mxCell id="log_l2_0" value="CHILogger&#xa;&quot;L2[0]_HN&quot;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="180" y="120" width="100" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="log_l2_1" value="CHILogger&#xa;&quot;L2[1]_HN&quot;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="180" y="210" width="100" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- CHIHNSubNode (context view) -->
+    <mxCell id="hn_ctx" value="&lt;b&gt;CHIHNSubNode&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=11;fontStyle=1;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="310" y="110" width="150" height="160" as="geometry" />
+    </mxCell>
+
+    <!-- Loggers after HN -->
+    <mxCell id="log_hn_0" value="CHILogger&#xa;&quot;HN[0]_LLC&quot;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="490" y="120" width="100" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="log_hn_1" value="CHILogger&#xa;&quot;HN[1]_LLC&quot;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="490" y="210" width="100" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- OpenLLC context -->
+    <mxCell id="openllc_ctx" value="&lt;b&gt;OpenLLC&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=11;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="620" y="110" width="130" height="160" as="geometry" />
+    </mxCell>
+
+    <!-- route note -->
+    <mxCell id="route_note" value="route()+bind()&#xa;地址分流：&#xa;0x8000_0000+&#xa;→ OpenLLC 路径" style="text;html=1;strokeColor=#555555;fontSize=9;align=left;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="290" width="140" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Context arrows -->
+    <mxCell id="ec1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;dashed=0;" edge="1" source="l2_0" target="log_l2_0" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="ec2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;dashed=0;" edge="1" source="l2_1" target="log_l2_1" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="ec3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;dashed=0;" edge="1" source="log_l2_0" target="hn_ctx" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="ec4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;dashed=0;" edge="1" source="log_l2_1" target="hn_ctx" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="ec5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=0;" edge="1" source="hn_ctx" target="log_hn_0" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="ec6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=0;" edge="1" source="hn_ctx" target="log_hn_1" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="ec7" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;dashed=0;" edge="1" source="log_hn_0" target="openllc_ctx" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="ec8" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;dashed=0;" edge="1" source="log_hn_1" target="openllc_ctx" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- ===================== §2 CHIHNSubNode 详细 IO 与内部结构 (y=375) ===================== -->
+    <mxCell id="sec2_title" value="§2  CHIHNSubNode 详细 IO 接口与内部结构" style="text;html=1;strokeColor=#555555;align=left;fontStyle=1;fontSize=12;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="370" width="750" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- Left: rnFromL2 ports (HN side) -->
+    <mxCell id="rn_from_label" value="&lt;b&gt;io.rnFromL2&lt;/b&gt;" style="text;html=1;strokeColor=#555555;align=center;fontStyle=1;fontSize=10;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="410" width="210" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="port_from0" value="&lt;b&gt;rnFromL2[0]&lt;/b&gt; — Core 0 L2" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=9;align=left;fontFamily=Courier New;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="480" width="230" height="280" as="geometry" />
+    </mxCell>
+    <mxCell id="port_from1" value="&lt;b&gt;rnFromL2[1]&lt;/b&gt; — Core 1 L2" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=9;align=left;fontFamily=Courier New;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="780" width="230" height="280" as="geometry" />
+    </mxCell>
+
+    <!-- Center: CHIHNSubNode module frame -->
+    <mxCell id="main_frame" value="&lt;b&gt;CHIHNSubNode&lt;/b&gt;（class CHIHNSubNode(val numCores: Int)）" style="swimlane;startSize=36;strokeColor=#555555;fontStyle=1;fontSize=12;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="280" y="400" width="880" height="680" as="geometry" />
+    </mxCell>
+
+    <!-- Core passthrough logic inside main_frame -->
+    <mxCell id="pass_bg" value="核心逻辑（当前实现：透明传递）" style="swimlane;startSize=26;strokeColor=#555555;fontStyle=1;fontSize=11;fillColor=none;" vertex="1" parent="main_frame">
+      <mxGeometry x="10" y="50" width="860" height="120" as="geometry" />
+    </mxCell>
+    <mxCell id="pass_loop" value="for (i &lt;- 0 until numCores) {&#xa;  io.rnToOpenLLC(i) &lt;&gt; io.rnFromL2(i)&#xa;}" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontFamily=Courier New;fontSize=11;align=left;fillColor=none;" vertex="1" parent="pass_bg">
+      <mxGeometry x="10" y="32" width="340" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="pass_note" value="透明传递：rnFromL2[i] 的所有信号直接&#xa;双向绑定到 rnToOpenLLC[i]&#xa;（&lt;&gt; 完成双方向信号连接）" style="text;html=1;strokeColor=#555555;fontSize=10;align=left;fillColor=none;" vertex="1" parent="pass_bg">
+      <mxGeometry x="370" y="32" width="480" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- Extension points inside main_frame -->
+    <mxCell id="ext_bg" value="扩展点（Future Extensions）" style="swimlane;startSize=26;strokeColor=#555555;fontStyle=1;fontSize=11;fillColor=none;" vertex="1" parent="main_frame">
+      <mxGeometry x="10" y="186" width="860" height="484" as="geometry" />
+    </mxCell>
+
+    <!-- EXT-1: Cluster Directory -->
+    <mxCell id="ext1" value="&lt;b&gt;[EXT-1] 集群级目录&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=10;align=left;fillColor=none;" vertex="1" parent="ext_bg">
+      <mxGeometry x="10" y="40" width="200" height="180" as="geometry" />
+    </mxCell>
+
+    <!-- EXT-2: Snoop Filter -->
+    <mxCell id="ext2" value="&lt;b&gt;[EXT-2] Snoop 过滤器&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=10;align=left;fillColor=none;" vertex="1" parent="ext_bg">
+      <mxGeometry x="220" y="40" width="200" height="180" as="geometry" />
+    </mxCell>
+
+    <!-- EXT-3: Request Merge -->
+    <mxCell id="ext3" value="&lt;b&gt;[EXT-3] 请求合并&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=10;align=left;fillColor=none;" vertex="1" parent="ext_bg">
+      <mxGeometry x="430" y="40" width="200" height="180" as="geometry" />
+    </mxCell>
+
+    <!-- EXT-4: Cluster Cache -->
+    <mxCell id="ext4" value="&lt;b&gt;[EXT-4] 集群缓存（L2.5 / L3 前级）&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=10;align=left;fillColor=none;" vertex="1" parent="ext_bg">
+      <mxGeometry x="10" y="240" width="840" height="120" as="geometry" />
+    </mxCell>
+
+    <!-- Extension connections (conceptual arrows inside ext_bg) -->
+    <mxCell id="ee12" value="协同" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;dashed=0;endArrow=open;fontSize=9;" edge="1" source="ext2" target="ext3" parent="ext_bg">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="ee14" value="辅助" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;dashed=0;endArrow=open;fontSize=9;" edge="1" source="ext1" target="ext4" parent="ext_bg">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="110" y="220" />
+          <mxPoint x="110" y="240" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- Right: rnToOpenLLC ports (RN side) -->
+    <mxCell id="rn_to_label" value="&lt;b&gt;io.rnToOpenLLC&lt;/b&gt;" style="text;html=1;strokeColor=#555555;align=center;fontStyle=1;fontSize=10;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="1190" y="410" width="210" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="port_to0" value="&lt;b&gt;rnToOpenLLC[0]&lt;/b&gt; — → OpenLLC.rn[0]" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=9;align=left;fontFamily=Courier New;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="1190" y="480" width="240" height="280" as="geometry" />
+    </mxCell>
+    <mxCell id="port_to1" value="&lt;b&gt;rnToOpenLLC[1]&lt;/b&gt; — → OpenLLC.rn[1]" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#555555;fontSize=9;align=left;fontFamily=Courier New;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="1190" y="780" width="240" height="280" as="geometry" />
+    </mxCell>
+
+    <!-- Edges: port_from → main_frame, main_frame → port_to -->
+    <mxCell id="ef1" value="rnFromL2[0]" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;fontSize=9;dashed=0;" edge="1" source="port_from0" target="main_frame" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="ef2" value="rnFromL2[1]" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;fontSize=9;dashed=0;" edge="1" source="port_from1" target="main_frame" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="ef3" value="rnToOpenLLC[0]" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;fontSize=9;dashed=0;" edge="1" source="main_frame" target="port_to0" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="ef4" value="rnToOpenLLC[1]" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#555555;endArrow=block;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;fontSize=9;dashed=0;" edge="1" source="main_frame" target="port_to1" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== §3 PortIO CHI E.b 通道信号说明 (y=1115) ===================== -->
+    <mxCell id="sec3_title" value="§3  PortIO — CHI E.b 通道信号详解" style="text;html=1;strokeColor=#555555;align=left;fontStyle=1;fontSize=12;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="1120" width="700" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- Channel table headers -->
+    <mxCell id="ch0" value="通道名" style="text;html=1;strokeColor=#555555;align=center;fontStyle=1;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="20" y="1150" width="100" height="30" as="geometry"/></mxCell>
+    <mxCell id="ch1" value="方向（RN 视角）" style="text;html=1;strokeColor=#555555;align=center;fontStyle=1;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="120" y="1150" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="ch2" value="flit 宽度" style="text;html=1;strokeColor=#555555;align=center;fontStyle=1;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="270" y="1150" width="90" height="30" as="geometry"/></mxCell>
+    <mxCell id="ch3" value="用途" style="text;html=1;strokeColor=#555555;align=center;fontStyle=1;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="360" y="1150" width="310" height="30" as="geometry"/></mxCell>
+    <mxCell id="ch4" value="关键信号字段" style="text;html=1;strokeColor=#555555;align=center;fontStyle=1;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="670" y="1150" width="380" height="30" as="geometry"/></mxCell>
+
+    <!-- TX.REQ -->
+    <mxCell id="cr1c0" value="TX.REQ" style="text;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="20" y="1180" width="100" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr1c1" value="RN → HN（发出请求）" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="120" y="1180" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr1c2" value="256 bit" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="270" y="1180" width="90" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr1c3" value="ReadNoSnp/ReadOnce/ReadUnique/WriteBack/Evict 等" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="360" y="1180" width="310" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr1c4" value="Opcode(7b)/Addr(48b)/TxnID(12b)/SrcID(11b)/TgtID(11b)/Size(3b)/Order/Excl" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=9;fontFamily=Courier New;" vertex="1" parent="1"><mxGeometry x="670" y="1180" width="380" height="30" as="geometry"/></mxCell>
+
+    <!-- TX.RSP -->
+    <mxCell id="cr2c0" value="TX.RSP" style="text;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="20" y="1210" width="100" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr2c1" value="RN → HN（发出响应）" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="120" y="1210" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr2c2" value="128 bit" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="270" y="1210" width="90" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr2c3" value="CompAck / SnpResp / RetryAck 等" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="360" y="1210" width="310" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr2c4" value="Opcode(5b)/TxnID(12b)/SrcID(11b)/TgtID(11b)/Resp(4b)" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=9;fontFamily=Courier New;" vertex="1" parent="1"><mxGeometry x="670" y="1210" width="380" height="30" as="geometry"/></mxCell>
+
+    <!-- TX.DAT -->
+    <mxCell id="cr3c0" value="TX.DAT" style="text;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="20" y="1240" width="100" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr3c1" value="RN → HN（发出数据）" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="120" y="1240" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr3c2" value="512 bit" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="270" y="1240" width="90" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr3c3" value="WriteData / SnpRespData / CopyBackWrData 等" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="360" y="1240" width="310" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr3c4" value="Opcode(4b)/TxnID(12b)/DataID(2b)/Data(512b)/BE(64b)/Resp(4b)" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=9;fontFamily=Courier New;" vertex="1" parent="1"><mxGeometry x="670" y="1240" width="380" height="30" as="geometry"/></mxCell>
+
+    <!-- RX.SNP -->
+    <mxCell id="cr4c0" value="RX.SNP" style="text;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="20" y="1270" width="100" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr4c1" value="HN → RN（发 Snoop）" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="120" y="1270" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr4c2" value="256 bit" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="270" y="1270" width="90" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr4c3" value="SnpShared / SnpUnique / SnpCleanInvalid / SnpMakeInvalid 等" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="360" y="1270" width="310" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr4c4" value="Opcode(5b)/Addr(48b)/TxnID(12b)/SrcID(11b)/FwdNID(11b)/RetToSrc" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=9;fontFamily=Courier New;" vertex="1" parent="1"><mxGeometry x="670" y="1270" width="380" height="30" as="geometry"/></mxCell>
+
+    <!-- RX.RSP -->
+    <mxCell id="cr5c0" value="RX.RSP" style="text;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="20" y="1300" width="100" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr5c1" value="HN → RN（发响应）" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="120" y="1300" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr5c2" value="128 bit" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="270" y="1300" width="90" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr5c3" value="Comp / CompAck / RetryAck / PCrdGrant 等" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="360" y="1300" width="310" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr5c4" value="Opcode(5b)/TxnID(12b)/DbID(12b)/Resp(4b)/RespErr(2b)/PCrdType" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=9;fontFamily=Courier New;" vertex="1" parent="1"><mxGeometry x="670" y="1300" width="380" height="30" as="geometry"/></mxCell>
+
+    <!-- RX.DAT -->
+    <mxCell id="cr6c0" value="RX.DAT" style="text;html=1;strokeColor=#555555;fontSize=10;fillColor=none;" vertex="1" parent="1"><mxGeometry x="20" y="1330" width="100" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr6c1" value="HN → RN（回填数据）" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="120" y="1330" width="150" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr6c2" value="512 bit" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="270" y="1330" width="90" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr6c3" value="CompData / DataSepResp 等携带缓存行数据的响应" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=10;" vertex="1" parent="1"><mxGeometry x="360" y="1330" width="310" height="30" as="geometry"/></mxCell>
+    <mxCell id="cr6c4" value="Opcode(4b)/TxnID(12b)/DataID(2b)/Data(512b)/BE(64b)/Resp(4b)/DBID" style="text;html=1;fillColor=none;strokeColor=#555555;fontSize=9;fontFamily=Courier New;" vertex="1" parent="1"><mxGeometry x="670" y="1330" width="380" height="30" as="geometry"/></mxCell>
+
+    <!-- ===================== §4 节点角色 + 代码骨架 (y=1365) ===================== -->
+    <mxCell id="role_box" value="&lt;b&gt;CHI 节点角色说明&lt;/b&gt;" style="text;html=1;strokeColor=#555555;align=left;fontSize=10;whiteSpace=wrap;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="20" y="1380" width="960" height="160" as="geometry" />
+    </mxCell>
+
+    <mxCell id="code_box" value="&lt;b&gt;Chisel 代码骨架&lt;/b&gt;（src/main/scala/top/HNSubNode.scala）" style="text;html=1;strokeColor=#555555;align=left;fontSize=10;fontFamily=Courier New;whiteSpace=pre;fillColor=none;" vertex="1" parent="1">
+      <mxGeometry x="1000" y="1380" width="640" height="230" as="geometry" />
+    </mxCell>
+
+    <!-- ===================== Description Table ===================== -->
+    <mxCell id="desc_table_title" value="说明表 / Description Table" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="20" y="1690" width="400" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="desc_table_content" value="&lt;table border=&quot;1&quot; cellpadding=&quot;4&quot; cellspacing=&quot;0&quot; style=&quot;border-collapse:collapse;font-size:10px;&quot;&gt;&lt;tr&gt;&lt;th&gt;模块 / Module&lt;/th&gt;&lt;th&gt;说明 / Description&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;CoreWithL2[0]&lt;/b&gt;&lt;/td&gt;&lt;td&gt;（RN-F）&lt;br/&gt;io.chi.get&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;CoreWithL2[1]&lt;/b&gt;&lt;/td&gt;&lt;td&gt;（RN-F）&lt;br/&gt;io.chi.get&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;CHIHNSubNode&lt;/b&gt;&lt;/td&gt;&lt;td&gt;rnFromL2[0..1]&lt;br/&gt;rnToOpenLLC[0..1]&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;OpenLLC&lt;/b&gt;&lt;/td&gt;&lt;td&gt;（HN-F）&lt;br/&gt;io.rn[0..1]&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;io.rnFromL2&lt;/b&gt;&lt;/td&gt;&lt;td&gt;对 L2 呈现为 HN-F&lt;br/&gt;Vec(numCores, Flipped(new PortIO))&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;rnFromL2[0]&lt;/b&gt; — Core 0 L2&lt;/td&gt;&lt;td&gt;──────────────────&lt;br/&gt;[TX → HN（L2 发出）]&lt;br/&gt;  tx.req: flitpend/flitv/flit(256b)/lcrdv&lt;br/&gt;  tx.rsp: flitpend/flitv/flit(128b)/lcrdv&lt;br/&gt;  tx.dat: flitpend/flitv/flit(512b)/lcrdv&lt;br/&gt;  tx.linkactiveack: Bool&lt;br/&gt;[RX ← HN（L2 接收）]&lt;br/&gt;  rx.snp: flitpend/flitv/flit(256b)/lcrdv&lt;br/&gt;  rx.rsp: flitpend/flitv/flit(128b)/lcrdv&lt;br/&gt;  rx.dat: flitpend/flitv/flit(512b)/lcrdv&lt;br/&gt;  rx.linkactivereq: Bool&lt;br/&gt;链路控制:&lt;br/&gt;  rxsactive/syscoreq/syscoack&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;rnFromL2[1]&lt;/b&gt; — Core 1 L2&lt;/td&gt;&lt;td&gt;──────────────────&lt;br/&gt;[TX → HN（L2 发出）]&lt;br/&gt;  tx.req: flitpend/flitv/flit(256b)/lcrdv&lt;br/&gt;  tx.rsp: flitpend/flitv/flit(128b)/lcrdv&lt;br/&gt;  tx.dat: flitpend/flitv/flit(512b)/lcrdv&lt;br/&gt;  tx.linkactiveack: Bool&lt;br/&gt;[RX ← HN（L2 接收）]&lt;br/&gt;  rx.snp: flitpend/flitv/flit(256b)/lcrdv&lt;br/&gt;  rx.rsp: flitpend/flitv/flit(128b)/lcrdv&lt;br/&gt;  rx.dat: flitpend/flitv/flit(512b)/lcrdv&lt;br/&gt;  rx.linkactivereq: Bool&lt;br/&gt;链路控制:&lt;br/&gt;  rxsactive/syscoreq/syscoack&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;io.rnToOpenLLC&lt;/b&gt;&lt;/td&gt;&lt;td&gt;对 OpenLLC 呈现为 RN&lt;br/&gt;Vec(numCores, new PortIO)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;rnToOpenLLC[0]&lt;/b&gt; — → OpenLLC.rn[0]&lt;/td&gt;&lt;td&gt;──────────────────&lt;br/&gt;[TX → OpenLLC（作为 RN 发出）]&lt;br/&gt;  tx.req: flitpend/flitv/flit(256b)/lcrdv&lt;br/&gt;  tx.rsp: flitpend/flitv/flit(128b)/lcrdv&lt;br/&gt;  tx.dat: flitpend/flitv/flit(512b)/lcrdv&lt;br/&gt;  tx.linkactiveack: Bool&lt;br/&gt;[RX ← OpenLLC（从 OpenLLC 接收）]&lt;br/&gt;  rx.snp: flitpend/flitv/flit(256b)/lcrdv&lt;br/&gt;  rx.rsp: flitpend/flitv/flit(128b)/lcrdv&lt;br/&gt;  rx.dat: flitpend/flitv/flit(512b)/lcrdv&lt;br/&gt;  rx.linkactivereq: Bool&lt;br/&gt;链路控制:&lt;br/&gt;  rxsactive/syscoreq/syscoack&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;rnToOpenLLC[1]&lt;/b&gt; — → OpenLLC.rn[1]&lt;/td&gt;&lt;td&gt;──────────────────&lt;br/&gt;[TX → OpenLLC（作为 RN 发出）]&lt;br/&gt;  tx.req: flitpend/flitv/flit(256b)/lcrdv&lt;br/&gt;  tx.rsp: flitpend/flitv/flit(128b)/lcrdv&lt;br/&gt;  tx.dat: flitpend/flitv/flit(512b)/lcrdv&lt;br/&gt;  tx.linkactiveack: Bool&lt;br/&gt;[RX ← OpenLLC（从 OpenLLC 接收）]&lt;br/&gt;  rx.snp: flitpend/flitv/flit(256b)/lcrdv&lt;br/&gt;  rx.rsp: flitpend/flitv/flit(128b)/lcrdv&lt;br/&gt;  rx.dat: flitpend/flitv/flit(512b)/lcrdv&lt;br/&gt;  rx.linkactivereq: Bool&lt;br/&gt;链路控制:&lt;br/&gt;  rxsactive/syscoreq/syscoack&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;[EXT-1] 集群级目录&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Cluster-level Directory&lt;br/&gt;─────────────────&lt;br/&gt;• 维护集群内 L2 共享状态&lt;br/&gt;• 目录命中时无需上报 OpenLLC&lt;br/&gt;• 减少对 OpenLLC 的频繁访问&lt;br/&gt;• 适合 NUMA 多核场景&lt;br/&gt;• 减少跨集群总线流量&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;[EXT-2] Snoop 过滤器&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Cross-L2 Snoop Filter&lt;br/&gt;─────────────────&lt;br/&gt;• 追踪每个 L2 持有的 cacheline&lt;br/&gt;• 避免广播不必要的 Snoop&lt;br/&gt;• 减少 L2 被打扰次数&lt;br/&gt;• 改善尾延迟（tail latency）&lt;br/&gt;• 使用 Bloom Filter 或精确目录&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;[EXT-3] 请求合并&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Request Coalescing&lt;br/&gt;─────────────────&lt;br/&gt;• 多个 L2 同时 Miss 同一地址时&lt;br/&gt;  合并为一条向 OpenLLC 的请求&lt;br/&gt;• 减少 OpenLLC MSHR 压力&lt;br/&gt;• 提升大规模并发访存效率&lt;br/&gt;• 与 Snoop Filter 协同工作&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;[EXT-4] 集群缓存（L2.5 / L3 前级）&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Cluster-level Cache&lt;br/&gt;────────────────────────────────────────────&lt;br/&gt;• 在 HNSubNode 内嵌入小型 SRAM（128KB~1MB）&lt;br/&gt;• 缓存集群热点 cacheline，降低访问 OpenLLC 频率&lt;br/&gt;• 相当于集群级 L2.5，减少跨集群流量&lt;br/&gt;• 需配合 EXT-1 集群目录管理 State&lt;br/&gt;• 多集群系统中可显著提升能效比&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;CHI 节点角色说明&lt;/b&gt;&lt;/td&gt;&lt;td&gt;────────────────────────────────────────────&lt;br/&gt;RN（Request Node）：发起 Cache/Memory 访问请求的节点（L2 缓存、CHIHNSubNode 对 OpenLLC 时）&lt;br/&gt;HN（Home Node）：维护地址一致性、接收 RN 请求并协调 Snoop（OpenLLC、CHIHNSubNode 对 L2 时）&lt;br/&gt;SN（Slave Node）：最终数据存储节点（DRAM 控制器，通过 OpenNCB 桥接 AXI）&lt;br/&gt;────────────────────────────────────────────&lt;br/&gt;&lt;b&gt;CHIHNSubNode 双重角色：&lt;/b&gt;&lt;br/&gt;• 对 CoreWithL2（L2）：充当 HN-F，接收 L2 的 CHI 请求&lt;br/&gt;• 对 OpenLLC：充当 RN，以请求者身份将请求转发给全局 HN-F（OpenLLC）&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Chisel 代码骨架&lt;/b&gt;（src/main/scala/top/HNSubNode.scala）&lt;/td&gt;&lt;td&gt;────────────────────────────────────────────────────────&lt;br/&gt;class CHIHNSubNode(val numCores: Int)(implicit p: Parameters) extends Module {&lt;br/&gt;  val io = IO(new Bundle {&lt;br/&gt;    val rnFromL2    = Vec(numCores, Flipped(new PortIO))  // HN 侧&lt;br/&gt;    val rnToOpenLLC = Vec(numCores, new PortIO)           // RN 侧&lt;br/&gt;  })&lt;br/&gt;  // 当前：透明传递&lt;br/&gt;  for (i &amp;lt;- 0 until numCores) {&lt;br/&gt;    io.rnToOpenLLC(i) &amp;lt;&amp;gt; io.rnFromL2(i)&lt;br/&gt;  }&lt;br/&gt;  // [EXT-1] 集群目录逻辑在此扩展&lt;br/&gt;  // [EXT-2] Snoop 过滤逻辑在此扩展&lt;br/&gt;  // [EXT-3] 请求合并逻辑在此扩展&lt;br/&gt;  // [EXT-4] 集群缓存 SRAM 在此扩展&lt;br/&gt;}&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;" vertex="1" parent="1">
+      <mxGeometry x="20" y="1740" width="1860" height="1020" as="geometry" />
+    </mxCell>
+
+  </root>
+</mxGraphModel>
