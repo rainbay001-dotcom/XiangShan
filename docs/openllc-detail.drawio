@@ -1,0 +1,257 @@
+<mxGraphModel dx="1800" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1400" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- ================================================================ -->
+    <!-- SECTION 1: OpenLLC top level  (OpenLLC.scala)                    -->
+    <!-- ================================================================ -->
+    <mxCell id="s1" value="&lt;b&gt;OpenLLC&lt;/b&gt;  (OpenLLC.scala)" style="text;html=1;strokeColor=#FFFFFF;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;fontSize=13;fontStyle=1;overflow=hidden;" vertex="1" parent="1">
+      <mxGeometry x="20" y="20" width="1660" height="160" as="geometry" />
+    </mxCell>
+
+    <mxCell id="io_rn" value="io.rn[0..N-1]&#xa;PortIO × numRNs" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="30" y="70" width="100" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="rn_lm" value="RNLinkMonitor&#xa;× numRNs&#xa;entranceID / nodeID" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="150" y="65" width="120" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="mmio_div" value="MMIODiverger&#xa;cache / uncache 分流" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="290" y="70" width="130" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="rn_xbar" value="RNXbar&#xa;按 bank 路由请求&#xa;snpMasks ← Slice" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="440" y="65" width="120" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="slice_ph" value="Slice × banks&#xa;(详见 Section 2)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="580" y="60" width="440" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="sn_xbar" value="SNXbar&#xa;汇聚各 bank 输出" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1040" y="70" width="110" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="mmio_mrg" value="MMIOMerger&#xa;cache + uncache 合并" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1170" y="70" width="140" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="sn_lm" value="SNLinkMonitor&#xa;nodeID" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1330" y="70" width="120" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="io_sn" value="io.sn&#xa;NoSnpPortIO" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1470" y="70" width="90" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="topdown" value="TopDownMonitor (可选)&#xa;msStatus → debugTopDown / l3Miss" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=9;" vertex="1" parent="1">
+      <mxGeometry x="580" y="140" width="280" height="30" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_rn_lm"  edge="1" source="io_rn"    target="rn_lm"    parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_lm_div" edge="1" source="rn_lm"    target="mmio_div" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_div_xb" value="cache" edge="1" source="mmio_div" target="rn_xbar"  parent="1" style="edgeStyle=none;fontSize=9;"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_div_unc" value="uncache（非 snoopable 直通）" edge="1" source="mmio_div" target="mmio_mrg" parent="1" style="edgeStyle=elbowEdgeStyle;elbow=vertical;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;fontSize=9;dashed=0;">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="360" y="180"/>
+          <mxPoint x="1240" y="180"/>
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="e_xb_sl"  edge="1" source="rn_xbar"  target="slice_ph" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_sl_snx" edge="1" source="slice_ph" target="sn_xbar"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_snx_mg" value="cache" edge="1" source="sn_xbar"  target="mmio_mrg" parent="1" style="edgeStyle=none;fontSize=9;"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_mg_slm" edge="1" source="mmio_mrg" target="sn_lm"    parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_slm_sn" edge="1" source="sn_lm"    target="io_sn"    parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- ================================================================ -->
+    <!-- SECTION 2: Slice  (Slice.scala)                                   -->
+    <!-- ================================================================ -->
+    <mxCell id="s2" value="&lt;b&gt;Slice&lt;/b&gt;  (Slice.scala)  — per-bank 实例" style="text;html=1;strokeColor=#FFFFFF;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;fontSize=13;fontStyle=1;overflow=hidden;" vertex="1" parent="1">
+      <mxGeometry x="20" y="200" width="1660" height="640" as="geometry" />
+    </mxCell>
+
+    <!-- io.in (upstream from RNXbar) -->
+    <mxCell id="sl_in" value="io.in&#xa;DecoupledPortIO&#xa;← RNXbar" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="30" y="260" width="80" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Upstream RX modules (left column, top) -->
+    <mxCell id="rxreq"   value="RXREQ&#xa;rxUp.req → reqBuf" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="130" y="250" width="110" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="rxrsp_u" value="RXRSP&#xa;rxUp.rsp" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="130" y="300" width="110" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="rxdat_u" value="RXDAT&#xa;rxUp.dat" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="130" y="350" width="110" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- Upstream TX modules (left column, bottom) -->
+    <mxCell id="txrsp"   value="TXRSP&#xa;txUp.rsp ← responseUnit" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="130" y="570" width="110" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="txdat_u" value="TXDAT&#xa;txUp.dat ← responseUnit" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="130" y="620" width="110" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="txsnp"   value="TXSNP&#xa;txUp.snp ← snpUnit&#xa;snpMask → io" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="130" y="670" width="110" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- RequestBuffer -->
+    <mxCell id="reqbuf" value="RequestBuffer&#xa;rxreqUp → busTask 入队" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="270" y="380" width="140" height="50" as="geometry" />
+    </mxCell>
+
+    <!-- RequestArb -->
+    <mxCell id="reqarb" value="RequestArb&#xa;busTask / refillTask / pipeInfo&#xa;dirRead_s1 / refillBufRead_s2" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="430" y="375" width="160" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- MainPipe label -->
+    <mxCell id="mp_box" value="MainPipe  (MainPipe.scala)" style="text;html=1;strokeColor=#FFFFFF;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="610" y="345" width="540" height="20" as="geometry" />
+    </mxCell>
+
+    <!-- MainPipe stages S2-S6 -->
+    <mxCell id="s2_mp" value="S2&#xa;taskFromArb_s2" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="610" y="370" width="100" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="s3_mp" value="S3&#xa;dirResp_s3&#xa;dirWReq_s3" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="720" y="370" width="100" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="s4_mp" value="S4&#xa;snoopTask_s4&#xa;comp_s4 / mem_s4&#xa;toDS_s4 / refillReq_s4" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="830" y="365" width="130" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="s5_mp" value="S5&#xa;中间寄存" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="970" y="370" width="90" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="s6_mp" value="S6&#xa;comp_s6 (CompData)&#xa;mem_s6 (脏写内存)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1070" y="365" width="140" height="60" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_buf_arb" edge="1" source="reqbuf" target="reqarb" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_arb_s2" edge="1" source="reqarb" target="s2_mp"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_s2_s3"  edge="1" source="s2_mp"  target="s3_mp"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_s3_s4"  edge="1" source="s3_mp"  target="s4_mp"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_s4_s5"  edge="1" source="s4_mp"  target="s5_mp"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_s5_s6"  edge="1" source="s5_mp"  target="s6_mp"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- Storage / Processing units -->
+    <mxCell id="dir_mod" value="Directory&#xa;dirRead_s1 ← reqArb&#xa;resp → S3 / write ← S3&#xa;(详见 Section 3)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="430" y="480" width="160" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="ds_mod" value="DataStorage&#xa;read / write ← S4&#xa;rdata → S6" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="610" y="480" width="140" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="rf_mod" value="RefillUnit&#xa;alloc ← S4&#xa;data → S4&#xa;task → reqArb" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="770" y="480" width="140" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="mem_mod" value="MemUnit&#xa;fromMainPipe (S4 / S6)&#xa;urgentRead ← responseUnit&#xa;rnRxdat / rnRxrsp / snRxrsp" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="930" y="475" width="170" height="80" as="geometry" />
+    </mxCell>
+    <mxCell id="resp_mod" value="ResponseUnit&#xa;fromMainPipe (S4 / S6)&#xa;bypassData ← memUnit&#xa;snRxdat / snRxrsp / rnRxdat / rnRxrsp" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1120" y="475" width="190" height="80" as="geometry" />
+    </mxCell>
+    <mxCell id="snp_mod" value="SnoopUnit&#xa;in ← S4&#xa;→ txsnpUp&#xa;ack ← rxrspUp" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="860" y="590" width="130" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- Storage/unit connections -->
+    <mxCell id="e_arb_dir"  edge="1" source="reqarb"  target="dir_mod"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_dir_s3"   edge="1" source="dir_mod"  target="s3_mp"    parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_s4_ds"    edge="1" source="s4_mp"    target="ds_mod"   parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_s4_rf"    edge="1" source="s4_mp"    target="rf_mod"   parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_s4_mem"   edge="1" source="s4_mp"    target="mem_mod"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_s6_resp"  edge="1" source="s6_mp"    target="resp_mod" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_s4_snp"   edge="1" source="s4_mp"    target="snp_mod"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_snp_tx"   edge="1" source="snp_mod"  target="txsnp"    parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_resp_rsp" edge="1" source="resp_mod" target="txrsp"    parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_resp_dat" edge="1" source="resp_mod" target="txdat_u"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_rxreq_bf" edge="1" source="rxreq"    target="reqbuf"   parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- Downstream CHI channels (right column) -->
+    <mxCell id="sl_out"  value="io.out&#xa;DecoupledNoSnpPortIO&#xa;→ SNXbar" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1570" y="490" width="90" height="60" as="geometry" />
+    </mxCell>
+    <mxCell id="txreq_d" value="TXREQ&#xa;txDown.req ← memUnit" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1450" y="480" width="100" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="txdat_d" value="TXDAT&#xa;txDown.dat ← memUnit" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1450" y="530" width="100" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="rxrsp_d" value="RXRSP&#xa;rxDown.rsp → memUnit" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1450" y="580" width="100" height="40" as="geometry" />
+    </mxCell>
+    <mxCell id="rxdat_d" value="RXDAT&#xa;rxDown.dat → memUnit" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1450" y="630" width="100" height="40" as="geometry" />
+    </mxCell>
+
+    <mxCell id="e_mem_txrq" edge="1" source="mem_mod"  target="txreq_d"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_mem_txdt" edge="1" source="mem_mod"  target="txdat_d"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_rxrpd_m"  edge="1" source="rxrsp_d"  target="mem_mod"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_rxdtd_m"  edge="1" source="rxdat_d"  target="mem_mod"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- io.l3Miss sideband -->
+    <mxCell id="l3miss" value="io.l3Miss (sideband)&#xa;responseUnit.respInfo 中 is_miss OR → 广播给各核" style="text;html=1;strokeColor=#FFFFFF;fillColor=none;align=left;fontSize=9;" vertex="1" parent="1">
+      <mxGeometry x="1120" y="570" width="330" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- ================================================================ -->
+    <!-- SECTION 3: Directory  (Directory.scala)                           -->
+    <!-- ================================================================ -->
+    <mxCell id="s3" value="&lt;b&gt;Directory&lt;/b&gt;  (Directory.scala)" style="text;html=1;strokeColor=#FFFFFF;fillColor=none;align=left;verticalAlign=top;spacingLeft=6;fontSize=13;fontStyle=1;overflow=hidden;" vertex="1" parent="1">
+      <mxGeometry x="20" y="870" width="1200" height="290" as="geometry" />
+    </mxCell>
+
+    <!-- io.read / io.write ports -->
+    <mxCell id="dir_rd_port" value="io.read&#xa;DirRead&#xa;self: SubDirRead&#xa;clients: SubDirRead" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="30" y="920" width="120" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="dir_wr_port" value="io.write&#xa;DirWriteIO&#xa;selfMeta/TagWReq&#xa;clientMeta/TagWReq" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="30" y="1040" width="120" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="dir_rsp_port" value="io.resp&#xa;DirResult&#xa;self: SubDirResult&#xa;clients: SubDirResult" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="30" y="1120" width="120" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- selfDir SubDirectory -->
+    <mxCell id="self_dir" value="&lt;b&gt;SubDirectory[SelfMetaEntry]&lt;/b&gt;&#xa;selfDir — LLC 自身目录&#xa;sets × ways: LLC 配置&#xa;replacement: PLRU&#xa;meta: {valid, dirty}" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="170" y="910" width="230" height="90" as="geometry" />
+    </mxCell>
+    <mxCell id="self_sram" value="tagArray SRAM&#xa;metaArray SRAM&#xa;replacer_sram (PLRU)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="170" y="1010" width="230" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- clientDir SubDirectory (Snoop Filter) -->
+    <mxCell id="client_dir" value="&lt;b&gt;SubDirectory[Vec[ClientMetaEntry]]&lt;/b&gt;&#xa;clientDir — Snoop Filter&#xa;sets × ways: 2× L2 容量（防 false miss）&#xa;replacement: random&#xa;meta: {valid} × numRNs" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="420" y="910" width="290" height="90" as="geometry" />
+    </mxCell>
+    <mxCell id="client_sram" value="tagArray SRAM&#xa;metaArray SRAM&#xa;(random: 无 replacer SRAM)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="420" y="1010" width="290" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- SubDirectory 3-stage read pipeline (shared description) -->
+    <mxCell id="sub_label" value="SubDirectory 读流水线（selfDir / clientDir 共用结构）" style="text;html=1;strokeColor=#FFFFFF;fillColor=none;align=center;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="730" y="910" width="470" height="20" as="geometry" />
+    </mxCell>
+    <mxCell id="sub_s1" value="s1: read.fire&#xa;发起 SRAM 访问" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="730" y="940" width="140" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="sub_s2" value="s2: RegEnable latch&#xa;Tag / Meta 读出" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="890" y="940" width="140" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="sub_s3" value="s3: hit / way 计算&#xa;resp.valid 输出" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#FFFFFF;fillColor=none;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="1050" y="940" width="150" height="50" as="geometry" />
+    </mxCell>
+    <mxCell id="e_ss1_s2" edge="1" source="sub_s1" target="sub_s2" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_ss2_s3" edge="1" source="sub_s2" target="sub_s3" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+    <!-- Replacer meta update note -->
+    <mxCell id="repl_note" value="PLRU: hit / refill 时更新 replacer_sram&#xa;random: miss 时调用 repl.miss" style="text;html=1;strokeColor=#FFFFFF;fillColor=none;align=left;fontSize=9;" vertex="1" parent="1">
+      <mxGeometry x="730" y="1010" width="470" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- Directory arrows -->
+    <mxCell id="e_rd_self"   edge="1" source="dir_rd_port"  target="self_dir"   parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_rd_client" edge="1" source="dir_rd_port"  target="client_dir" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_wr_self"   edge="1" source="dir_wr_port"  target="self_sram"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_wr_client" edge="1" source="dir_wr_port"  target="client_sram" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+    <mxCell id="e_self_rsp"  edge="1" source="sub_s3"       target="dir_rsp_port" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+  </root>
+</mxGraphModel>
