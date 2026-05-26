@@ -41,6 +41,7 @@ import xiangshan.frontend.icache.ICacheParameters
 import xiangshan.frontend.ibuffer.IBufferParameters
 import freechips.rocketchip.devices.debug._
 import openLLC.OpenLLCParam
+import openllcnested.OpenLLCNestedParamKey
 import freechips.rocketchip.diplomacy._
 import xiangshan.backend.regfile._
 import xiangshan.cache.DCacheParameters
@@ -707,6 +708,55 @@ class TLFpgaDiffMinimalConfig(n: Int = 1) extends Config(
   })
 )
 class FpgaDiffMinimalConfig(n: Int = 1) extends TLFpgaDiffMinimalConfig(n) with DeprecatedConfigWarning
+
+// Inserts OpenLLCNested between Core L2s and OpenLLC.
+// NESTED acts as HN toward Core L2s and as RN toward OpenLLC,
+// with full SNP channel support on both faces.
+// Must be combined with a CHI config that sets OpenLLCParamsOpt.
+class WithOpenLLCNested(
+  ways:  Int    = 8,
+  sets:  Int    = 1024,
+  banks: Int    = 2,
+  name:  String = "LLC_NESTED"
+) extends Config((site, here, up) => {
+  case SoCParamsKey =>
+    val tiles = site(XSTileKey)
+    val nestedCacheParam = L2Param(
+      name  = name,
+      ways  = ways,
+      sets  = sets * banks,
+      banks = banks
+    )
+    val clientDirBytes = tiles.map { t =>
+      t.L2NBanks * t.L2CacheParamsOpt.map(_.toCacheParams.capacity).getOrElse(0)
+    }.sum
+    up(SoCParamsKey).copy(
+      OpenLLCNestedParamsOpt = Option.when(up(EnableCHI))(OpenLLCParam(
+        name           = name,
+        ways           = ways,
+        sets           = sets,
+        banks          = banks,
+        fullAddressBits = 48,
+        clientCaches   = tiles.map { core =>
+          val l2params = core.L2CacheParamsOpt.get
+          // Over-provision directory capacity slightly to reduce false conflicts
+          l2params.copy(
+            sets = 2 * clientDirBytes / core.L2NBanks / l2params.ways / 64,
+            ways = l2params.ways + 2
+          )
+        }
+      )),
+      // OpenLLC sees NESTED as its sole client (NESTED aggregates all Core L2 traffic)
+      OpenLLCParamsOpt = up(SoCParamsKey).OpenLLCParamsOpt.map(_.copy(
+        clientCaches = Seq(nestedCacheParam)
+      ))
+    )
+})
+
+// CHIConfig with OPENLLC_NESTED enabled (1-core default)
+class CHINestedConfig(n: Int = 1) extends Config(
+  new WithOpenLLCNested() ++ new CHIConfig(n)
+)
 
 trait DeprecatedConfigWarning {
   val className = this.getClass().getSimpleName()
