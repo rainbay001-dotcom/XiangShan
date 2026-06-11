@@ -14,9 +14,7 @@
   - any-glob-to-any-file:
     - src/main/scala/xiangshan/cache/**
     - src/main/scala/xiangshan/mem/**
-    - coupledL2
-    - huancun
-    - openLLC
+    - XSCache
 
 "module: top":
 - changed-files:
@@ -71,10 +69,8 @@
     - .gitmodules
     - ChiselAIA
     - ChiselIOPMP
-    - coupledL2
+    - XSCache
     - difftest
-    - huancun
-    - openLLC
     - ready-to-run
     - rocket-chip
     - utility

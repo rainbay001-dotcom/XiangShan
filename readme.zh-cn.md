@@ -68,7 +68,7 @@ Weibo/微博：[香山开源处理器](https://weibo.com/u/7706264932)
 │           └── transforms # 一些实用的 firrtl 变换代码
 ├── scripts                # 用于敏捷开发的脚本文件
 ├── yunsuan                # 香山运算子模块
-├── huancun                # 香山 L2/L3 缓存子模块
+├── XSCache                # 香山缓存子系统子模块
 ├── difftest               # 香山协同仿真框架
 └── read-to-run            # 预建的仿真镜像文件
 ```
@@ -111,7 +111,7 @@ make idea
 运行示例：
 
 ```bash
-make emu CONFIG=TLMinimalConfig EMU_THREADS=2 -j10
+make emu CONFIG=MinimalConfig EMU_THREADS=2 -j10
 ./build/emu -b 0 -e 0 -i ./ready-to-run/coremark-2-iteration.bin --diff ./ready-to-run/riscv64-nemu-interpreter-so
 ```
 

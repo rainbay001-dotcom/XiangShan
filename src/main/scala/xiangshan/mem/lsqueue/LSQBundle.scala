@@ -19,7 +19,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import utility.InstSeqNum
 import xiangshan._
-import xiangshan.backend.Bundles.{DynInst, ExuOutput, MemExuOutput, NewExuOutput, UopIdx}
+import xiangshan.backend.Bundles.{DynInst, ExuOutput, MemExuOutput, MemToRob, UopIdx}
 import xiangshan.backend.exu.ExeUnitParams
 import xiangshan.backend.fu.FuType
 import xiangshan.backend.fu.vector.Bundles.NumLsElem
@@ -106,23 +106,20 @@ class StoreAddrIO(implicit p: Parameters) extends MemBlockBundle {
   val size            = UInt(MemorySize.Size.width.W)
   val memBackTypeMM   = Bool() // 1: main memory, 0: IO.
   val hasException    = Bool() // indicate request has exception.
-  val af              = Bool() // indicate access fault.
   val isHyper         = Bool()
-
 
   /* only use in cmo.zero
   * means this write request need to write whole cacheline.
   * */
   val wlineflag          = Bool() // store write the whole cache line.
-
+  
   // misalign
-  val isUnalign           = Bool()
-  val unalignWithin16Byte = Bool()
+  val isUnalign   = Bool()
+  val cross16Byte = Bool()
 
   // ctrl signal
   val isLastRequest      = Bool() /* It's last request to write to storeQueue. if is normal request, it will be true,
                                       if it was unalign splited, first request will be false, second will be true. */
-  val cross4KPage        = Bool() // this unalign request is cross 4KPage
 }
 
 class StoreQueueDataWrite(implicit p: Parameters) extends MemBlockBundle {
@@ -135,8 +132,6 @@ class StoreQueueDataWrite(implicit p: Parameters) extends MemBlockBundle {
 }
 
 class StaIO(implicit p: Parameters) extends MemBlockBundle {
-
-  val storeMaskIn      = Vec(StorePipelineWidth, Flipped(ValidIO(new StoreMaskBundle))) // store mask, send to sq
   val storeAddrIn      = Vec(StorePipelineWidth, Flipped(ValidIO(new StoreAddrIO))) // store addr, data is not included
   // this bundle will be removed in the feature.
   val storeAddrInRe    = Vec(StorePipelineWidth, Input(new StoreAddrIO)) // store more mmio and exception
@@ -210,9 +205,8 @@ class StoreQueueIO(val param: ExeUnitParams)(implicit p: Parameters) extends Mem
   // write store request to uncacheBuffer.
   val toUncacheBuffer    = new UncacheWordIO
   // to backend , used to writeback uop when request is mmio, cmo.
-  val writeBack          = DecoupledIO(new NewExuOutput(param))
+  val writeBack          = DecoupledIO(new MemToRob(param))
   // from misalignBuffer, will be remove in the feature
-//  val maControl          = Flipped(new StoreMaBufToSqControlIO)
   val wfi                = Flipped(new WfiReqBundle)
   val sqEmpty            = Output(Bool())
   val sqFull             = Output(Bool())
@@ -224,8 +218,6 @@ class StoreQueueIO(val param: ExeUnitParams)(implicit p: Parameters) extends Mem
   val sqDeq              = Output(UInt(log2Ceil(EnsbufferWidth + 1).W))
   // to store unit
   val sqDeqPtr           = Output(new SqPtr)
-  val sqDeqUopIdx        = Output(UopIdx())
-  val sqDeqRobIdx        = Output(new RobPtr)
   // for store difftest
   val diffStore          = Option.when(debugEn)(Flipped(new DiffStoreIO))
 }

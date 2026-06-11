@@ -20,11 +20,10 @@ import org.chipsalliance.cde.config.{Field, Parameters}
 import chisel3._
 import chisel3.util._
 import device.{AXI4MemEncrypt, DebugModule, DebugModuleIO, SYSCNT, SYSCNTConsts, SYSCNTParams, TIMER, TIMERConsts, TIMERParams, TLPMA, TLPMAIO}
-import huancun._
 import utility.{ReqSourceKey, TLClientsMerger, TLEdgeBuffer, TLLogger}
-import coupledL2.{EnableCHI, L2Param}
-import coupledL2.tl2chi.CHIIssue
-import openLLC.OpenLLCParam
+import xscache.coupledL2.L2Param
+import xscache.chi.CHIIssue
+import xscache.openLLC.OpenLLCParam
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.devices.debug.DebugModuleKey
 import freechips.rocketchip.devices.tilelink._
@@ -79,12 +78,6 @@ case class SoCParameters
   UARTLiteForDTS: Boolean = true, // should be false in SimMMIO
   extIntrs: Int = 64,
   L3NBanks: Int = 4,
-  L3CacheParamsOpt: Option[HCCacheParameters] = Some(HCCacheParameters(
-    name = "L3",
-    level = 3,
-    ways = 8,
-    sets = 2048 // 1MB per bank
-  )),
   OpenLLCParamsOpt: Option[OpenLLCParam] = None,
   XSTopPrefix: Option[String] = None,
   NodeIDWidthList: Map[String, Int] = Map(
@@ -127,10 +120,6 @@ case class SoCParameters
     "HasTEEIMSIC only can be set true with IMSICBusType == AXI"
   )
   require(
-    L3CacheParamsOpt.isDefined ^ OpenLLCParamsOpt.isDefined || L3CacheParamsOpt.isEmpty && OpenLLCParamsOpt.isEmpty,
-    "Atmost one of L3CacheParamsOpt and OpenLLCParamsOpt should be defined"
-  )
-  require(
     !UsePrivateClint || (SeperateBus != top.SeperatedBusType.NONE),
     "SeperateBus should not be None when UsePrivateClint is true"
   )
@@ -140,6 +129,7 @@ case class SoCParameters
   // on chip network configurations
   val L3OuterBusWidth = 256
   val UARTLiteRange = AddressSet(0x40600000, if (UARTLiteForDTS) 0x3f else 0xf)
+  val UART16550Range = AddressSet(0x310b0000L, 0x1f)
 }
 
 trait HasSoCParameter {
@@ -149,7 +139,7 @@ trait HasSoCParameter {
   val cvm = p(CVMParamsKey)
   val debugOpts = p(DebugOptionsKey)
   val tiles = p(XSTileKey)
-  val enableCHI = p(EnableCHI)
+  val enableCHI = true
   val issue = p(CHIIssue)
 
   val NumCores = tiles.size
@@ -206,6 +196,7 @@ trait HasPeripheralRanges {
 
   private def cvm = p(CVMParamsKey)
   private def soc = p(SoCParamsKey)
+  private def enableCHI = true
   private def dm = p(DebugModuleKey)
   private def pmParams = p(PMParameKey)
 
@@ -217,14 +208,10 @@ trait HasPeripheralRanges {
     "BEU"   -> soc.BEURange,
     "PLIC"  -> soc.PLICRange,
     "PLL"   -> soc.PLLRange,
-    "UART"  -> soc.UARTLiteRange,
+    "UARTLITE" -> soc.UARTLiteRange,
+    "UART16550" -> soc.UART16550Range,
     "DEBUG" -> dm.get.address,
     "MMPMA" -> AddressSet(mmpma.address, mmpma.mask)
-  ) ++ (
-    if (soc.L3CacheParamsOpt.map(_.ctrl.isDefined).getOrElse(false))
-      Map("L3CTL" -> AddressSet(soc.L3CacheParamsOpt.get.ctrl.get.address, 0xffff))
-    else
-      Map()
   ) ++ (
     if (cvm.HasMEMencryption)
       Map("MEMENC"  -> cvm.MEMENCRange)
@@ -371,13 +358,21 @@ trait HaveAXI4MemPort {
 }
 
 trait HaveAXI4PeripheralPort { this: BaseSoC =>
-  val uartDevice = new SimpleDevice("serial", Seq("xilinx,uartlite"))
-  val uartParams = AXI4SlaveParameters(
+  val uartLiteDevice = new SimpleDevice("serial", Seq("xilinx,uartlite"))
+  val uartLiteParams = AXI4SlaveParameters(
     address = Seq(soc.UARTLiteRange),
     regionType = RegionType.UNCACHED,
     supportsRead = TransferSizes(1, 32),
     supportsWrite = TransferSizes(1, 32),
-    resources = uartDevice.reg
+    resources = uartLiteDevice.reg
+  )
+  val uart16550Device = new SimpleDevice("serial", Seq("ns16550a"))
+  val uart16550Params = AXI4SlaveParameters(
+    address = Seq(soc.UART16550Range),
+    regionType = RegionType.UNCACHED,
+    supportsRead = TransferSizes(1, 32),
+    supportsWrite = TransferSizes(1, 32),
+    resources = uart16550Device.reg
   )
   val peripheralNode = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
@@ -386,7 +381,7 @@ trait HaveAXI4PeripheralPort { this: BaseSoC =>
       supportsRead = TransferSizes(1, 32),
       supportsWrite = TransferSizes(1, 32),
       interleavedId = Some(0)
-    ), uartParams),
+    ), uartLiteParams, uart16550Params),
     beatBytes = 8
   )))
 
@@ -462,7 +457,7 @@ class MemMisc()(implicit p: Parameters) extends BaseSoC
     case None =>
   }
 
-  if(soc.L3CacheParamsOpt.isEmpty){
+  if(!enableCHI){
     l3_out :*= l3_in
   }
 
@@ -643,4 +638,3 @@ class MemMisc()(implicit p: Parameters) extends BaseSoC
 
 class SoCMisc()(implicit p: Parameters) extends MemMisc
   with HaveSlaveAXI4Port
-

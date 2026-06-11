@@ -9,7 +9,6 @@ import xiangshan._
 import xiangshan.backend.fu.PMPRespBundle
 import xiangshan.cache.HasDCacheParameters
 import xiangshan.cache.mmu._
-import xiangshan.mem.Bundles.LsPrefetchTrainBundle
 import xiangshan.mem.{L1PrefetchReq, L1PrefetchSource}
 
 case class StreamStrideParams() extends PrefetcherParams{
@@ -104,157 +103,9 @@ trait HasL1PrefetchHelper extends HasCircularQueuePtrHelper with HasDCacheParame
   }
 }
 
-trait HasTrainFilterHelper extends HasCircularQueuePtrHelper {
-  def reorder[T <: LsPrefetchTrainBundle](source: Vec[ValidIO[T]]): Vec[ValidIO[T]] = {
-    if(source.length == 1) {
-      source
-    }else if(source.length == 2) {
-      val source_v = source.map(_.valid)
-      val res = Wire(source.cloneType)
-      // source 1 is older than source 0 (only when source0/1 are both valid)
-      val source_1_older = Mux(Cat(source_v).andR,
-        isBefore(source(1).bits.uop.robIdx, source(0).bits.uop.robIdx),
-        false.B
-      )
-      when(source_1_older) {
-        res(0) := source(1)
-        res(1) := source(0)
-      }.otherwise {
-        res := source
-      }
-
-      res
-    }else if(source.length == 3) {
-      // TODO: generalize
-      val res_0_1 = Reg(source.cloneType)
-      val res_1_2 = Reg(source.cloneType)
-      val res = Reg(source.cloneType)
-
-      val tmp = reorder(VecInit(source.slice(0, 2)))
-      res_0_1(0) := tmp(0)
-      res_0_1(1) := tmp(1)
-      res_0_1(2) := source(2)
-      val tmp_1 = reorder(VecInit(res_0_1.slice(1, 3)))
-      res_1_2(0) := res_0_1(0)
-      res_1_2(1) := tmp_1(0)
-      res_1_2(2) := tmp_1(1)
-      val tmp_2 = reorder(VecInit(res_1_2.slice(0, 2)))
-      res(0) := tmp_2(0)
-      res(1) := tmp_2(1)
-      res(2) := res_1_2(2)
-
-      res
-    }else {
-      require(false, "for now, 4 or more sources are invalid")
-      source
-    }
-  }
-}
-
-// get prefetch train reqs from `exuParameters.LduCnt` load pipelines (up to `exuParameters.LduCnt`/cycle)
-// filter by cache line address, send out train req to stride (up to 1 req/cycle)
-class TrainFilter(size: Int, name: String)(implicit p: Parameters) extends XSModule with HasL1PrefetchHelper with HasTrainFilterHelper {
-  val io = IO(new Bundle() {
-    val enable = Input(Bool())
-    val flush = Input(Bool())
-    // train input, only from load for now
-    val ld_in = Flipped(Vec(backendParams.LduCnt, ValidIO(new LsPrefetchTrainBundle())))
-    // filter out
-    val train_req = DecoupledIO(new PrefetchReqBundle())
-  })
-
-  class Ptr(implicit p: Parameters) extends CircularQueuePtr[Ptr]( p => size ){}
-  object Ptr {
-    def apply(f: Bool, v: UInt)(implicit p: Parameters): Ptr = {
-      val ptr = Wire(new Ptr)
-      ptr.flag := f
-      ptr.value := v
-      ptr
-    }
-  }
-
-  val entries = Reg(Vec(size, new PrefetchReqBundle))
-  val valids = RegInit(VecInit(Seq.fill(size){ (false.B) }))
-
-  // enq
-  val enqLen = backendParams.LduCnt
-  val enqPtrExt = RegInit(VecInit((0 until enqLen).map(_.U.asTypeOf(new Ptr))))
-  val deqPtrExt = RegInit(0.U.asTypeOf(new Ptr))
-
-  val deqPtr = WireInit(deqPtrExt.value)
-
-  require(size >= enqLen)
-
-  val ld_in_reordered = reorder(io.ld_in)
-  val reqs_l = ld_in_reordered.map(_.bits.toPrefetchReqBundle())
-  val reqs_vl = ld_in_reordered.map(_.valid)
-  val needAlloc = Wire(Vec(enqLen, Bool()))
-  val canAlloc = Wire(Vec(enqLen, Bool()))
-
-  for(i <- (0 until enqLen)) {
-    val req = reqs_l(i)
-    val req_v = reqs_vl(i)
-    val index = PopCount(needAlloc.take(i))
-    val allocPtr = enqPtrExt(index)
-    val entry_match = Cat(entries.zip(valids).map {
-      case(e, v) => v && block_hash_tag(e.vaddr) === block_hash_tag(req.vaddr)
-    }).orR
-    val prev_enq_match = if(i == 0) false.B else Cat(reqs_l.zip(reqs_vl).take(i).map {
-      case(pre, pre_v) => pre_v && block_hash_tag(pre.vaddr) === block_hash_tag(req.vaddr)
-    }).orR
-
-    needAlloc(i) := req_v && !entry_match && !prev_enq_match
-    canAlloc(i) := needAlloc(i) && allocPtr >= deqPtrExt && io.enable
-
-    when(canAlloc(i)) {
-      valids(allocPtr.value) := true.B
-      entries(allocPtr.value) := req
-    }
-  }
-  val allocNum = PopCount(canAlloc)
-
-  enqPtrExt.foreach{case x => when(canAlloc.asUInt.orR) {x := x + allocNum} }
-
-  // deq
-  io.train_req.valid := false.B
-  io.train_req.bits := DontCare
-  valids.zip(entries).zipWithIndex.foreach {
-    case((valid, entry), i) => {
-      when(deqPtr === i.U) {
-        io.train_req.valid := valid && io.enable
-        io.train_req.bits := entry
-      }
-    }
-  }
-
-  when(io.train_req.fire) {
-    valids(deqPtr) := false.B
-    deqPtrExt := deqPtrExt + 1.U
-  }
-
-  when(RegNext(io.flush)) {
-    valids.foreach {case valid => valid := false.B}
-    (0 until enqLen).map {case i => enqPtrExt(i) := i.U.asTypeOf(new Ptr)}
-    deqPtrExt := 0.U.asTypeOf(new Ptr)
-  }
-
-  XSPerfAccumulate(s"${name}_train_filter_full", PopCount(valids) === size.U)
-  XSPerfAccumulate(s"${name}_train_filter_half", PopCount(valids) >= (size / 2).U)
-  XSPerfAccumulate(s"${name}_train_filter_empty", PopCount(valids) === 0.U)
-
-  val raw_enq_pattern = Cat(reqs_vl)
-  val filtered_enq_pattern = Cat(needAlloc)
-  val actual_enq_pattern = Cat(canAlloc)
-  XSPerfAccumulate(s"${name}_train_filter_enq", allocNum > 0.U)
-  XSPerfAccumulate(s"${name}_train_filter_deq", io.train_req.fire)
-  for(i <- 0 until (1 << enqLen)) {
-    XSPerfAccumulate(s"${name}_train_filter_raw_enq_pattern_${toBinary(i)}", raw_enq_pattern === i.U)
-    XSPerfAccumulate(s"${name}_train_filter_filtered_enq_pattern_${toBinary(i)}", filtered_enq_pattern === i.U)
-    XSPerfAccumulate(s"${name}_train_filter_actual_enq_pattern_${toBinary(i)}", actual_enq_pattern === i.U)
-  }
-}
-
-class NewTrainFilter(size: Int, name: String, hasLoadTrain: Boolean=true, hasStoreTrain: Boolean=false)(implicit p: Parameters) extends XSModule with HasL1PrefetchHelper {
+// get prefetch train reqs from pipelines
+// filter by cache line address, send out train req up to 1 req/cycle
+class TrainFilter(size: Int, name: String, hasLoadTrain: Boolean=true, hasStoreTrain: Boolean=false)(implicit p: Parameters) extends XSModule with HasL1PrefetchHelper {
   val io = IO(new Bundle() {
     // control
     val enable = Input(Bool()) // FIXME lyq: some doubts about the functionality of enable
@@ -262,10 +113,10 @@ class NewTrainFilter(size: Int, name: String, hasLoadTrain: Boolean=true, hasSto
     // train input: from ldu, stu
 
     val ldTrainOpt = if (hasLoadTrain) {
-      Some(Flipped(Vec(backendParams.LdExuCnt, ValidIO(new LsPrefetchTrainBundle()))))
+      Some(Flipped(Vec(backendParams.LdExuCnt, ValidIO(new TrainReqBundle()))))
     } else None
     val stTrainOpt = if (hasStoreTrain) {
-       Some(Flipped(Vec(backendParams.StaExuCnt, ValidIO(new LsPrefetchTrainBundle()))))
+       Some(Flipped(Vec(backendParams.StaExuCnt, ValidIO(new TrainReqBundle()))))
     } else None
     // filter output
     val trainReq = DecoupledIO(new TrainReqBundle())
@@ -285,13 +136,13 @@ class NewTrainFilter(size: Int, name: String, hasLoadTrain: Boolean=true, hasSto
   val deqPtr = WireInit(deqPtrExt.value)
 
   val ldReorderOpt = io.ldTrainOpt.map { ldTrain =>
-    HwSort(VecInit(ldTrain.map { case x => DataWithPtr(x.valid, x.bits, x.bits.uop.robIdx) }))
+    HwSort(VecInit(ldTrain.map { case x => DataWithPtr(x.valid, x.bits, x.bits.robIdx) }))
   }
   val stReorderOpt = io.stTrainOpt.map { stTrain =>
-    HwSort(VecInit(stTrain.map { case x => DataWithPtr(x.valid, x.bits, x.bits.uop.robIdx) }))
+    HwSort(VecInit(stTrain.map { case x => DataWithPtr(x.valid, x.bits, x.bits.robIdx) }))
   }
-  val reqs = ldReorderOpt.map(_.map(_.bits.toTrainReqBundle())).getOrElse(Seq.empty) ++
-    stReorderOpt.map(_.map(_.bits.toTrainReqBundle())).getOrElse(Seq.empty)
+  val reqs = ldReorderOpt.map(_.map(_.bits)).getOrElse(Seq.empty) ++
+    stReorderOpt.map(_.map(_.bits)).getOrElse(Seq.empty)
   val reqsValid = ldReorderOpt.map(_.map(_.valid)).getOrElse(Seq.empty) ++
     stReorderOpt.map(_.map(_.valid)).getOrElse(Seq.empty)
 
@@ -469,8 +320,8 @@ class MutiLevelPrefetchFilter(implicit p: Parameters) extends XSModule with HasL
     val tlb_req = new TlbRequestIO(nRespDups = 2)
     val pmp_resp = Flipped(new PMPRespBundle())
     val l1_req = DecoupledIO(new L1PrefetchReq())
-    val l2_pf_addr = ValidIO(new L2PrefetchReq())
-    val l3_pf_addr = ValidIO(new L3PrefetchReq())
+    val l2_pf_addr = DecoupledIO(new L2PrefetchReq())
+    val l3_pf_addr = DecoupledIO(new L3PrefetchReq())
     val l2PfqBusy = Input(Bool())
   })
 
@@ -846,7 +697,7 @@ class MutiLevelPrefetchFilter(implicit p: Parameters) extends XSModule with HasL
   io.l2_pf_addr.valid := l2_pf_req_arb.io.out.valid
   io.l2_pf_addr.bits := l2_pf_req_arb.io.out.bits.req
 
-  l2_pf_req_arb.io.out.ready := true.B
+  l2_pf_req_arb.io.out.ready := io.l2_pf_addr.ready
 
   for(i <- 0 until MLP_L2L3_SIZE) {
     val evict = s1_l2_alloc && (s1_l2_index === i.U)
@@ -891,7 +742,7 @@ class MutiLevelPrefetchFilter(implicit p: Parameters) extends XSModule with HasL
   io.l3_pf_addr.valid := l3_pf_req_arb.io.out.valid
   io.l3_pf_addr.bits := l3_pf_req_arb.io.out.bits
 
-  l3_pf_req_arb.io.out.ready := true.B
+  l3_pf_req_arb.io.out.ready := io.l3_pf_addr.ready
 
   for(i <- 0 until MLP_L2L3_SIZE) {
     val evict = s1_l2_alloc && (s1_l2_index === i.U)
@@ -932,7 +783,7 @@ class MutiLevelPrefetchFilter(implicit p: Parameters) extends XSModule with HasL
 
 class L1Prefetcher(implicit p: Parameters) extends BasePrefecher with HasStreamPrefetchHelper with HasStridePrefetchHelper {
   val pf_ctrl = IO(Input(Vec(L1PrefetcherNum, new PrefetchControlBundle)))
-  val stride_train = IO(Flipped(Vec(backendParams.LduCnt + backendParams.HyuCnt, ValidIO(new LsPrefetchTrainBundle()))))
+  val stride_train = IO(Flipped(Vec(backendParams.LduCnt + backendParams.HyuCnt, ValidIO(new TrainReqBundle()))))
   val l2PfqBusy = IO(Input(Bool()))
   val strideEnable = IO(Input(Bool()))
 
@@ -948,7 +799,7 @@ class L1Prefetcher(implicit p: Parameters) extends BasePrefecher with HasStreamP
   val stream_pf_ctrl = pf_ctrl(0)
   val stride_pf_ctrl = pf_ctrl(1)
 
-  stream_train_filter.io.ld_in.zipWithIndex.foreach {
+  stream_train_filter.io.ldTrainOpt.get.zipWithIndex.foreach {
     case (ld_in, i) => {
       ld_in.valid := io.ld_in(i).valid && enable
       ld_in.bits := io.ld_in(i).bits
@@ -957,7 +808,7 @@ class L1Prefetcher(implicit p: Parameters) extends BasePrefecher with HasStreamP
   stream_train_filter.io.enable := enable
   stream_train_filter.io.flush := stream_pf_ctrl.flush
 
-  stride_train_filter.io.ld_in.zipWithIndex.foreach {
+  stride_train_filter.io.ldTrainOpt.get.zipWithIndex.foreach {
     case (ld_in, i) => {
       ld_in.valid := stride_train(i).valid && enable
       ld_in.bits := stride_train(i).bits
@@ -970,13 +821,13 @@ class L1Prefetcher(implicit p: Parameters) extends BasePrefecher with HasStreamP
   stream_bit_vec_array.io.flush := stream_pf_ctrl.flush
   stream_bit_vec_array.io.dynamic_depth := stream_pf_ctrl.dynamic_depth
   stream_bit_vec_array.io.confidence := stream_pf_ctrl.confidence
-  stream_bit_vec_array.io.train_req <> stream_train_filter.io.train_req
+  stream_bit_vec_array.io.train_req <> stream_train_filter.io.trainReq
 
   stride_meta_array.io.enable := enable && strideEnable
   stride_meta_array.io.flush := stride_pf_ctrl.flush
   stride_meta_array.io.dynamic_depth := 0.U
   stride_meta_array.io.confidence := stride_pf_ctrl.confidence
-  stride_meta_array.io.train_req <> stride_train_filter.io.train_req
+  stride_meta_array.io.train_req <> stride_train_filter.io.trainReq
   stride_meta_array.io.stream_lookup_req <> stream_bit_vec_array.io.stream_lookup_req
   stride_meta_array.io.stream_lookup_resp <> stream_bit_vec_array.io.stream_lookup_resp
 
@@ -1009,8 +860,10 @@ class L1Prefetcher(implicit p: Parameters) extends BasePrefecher with HasStreamP
   val l2_in_pmem = PmemRanges.map(_.cover(pf_queue_filter.io.l2_pf_addr.bits.addr)).reduce(_ || _)
   io.l2_req.valid := pf_queue_filter.io.l2_pf_addr.valid && l2_in_pmem && enable
   io.l2_req.bits := pf_queue_filter.io.l2_pf_addr.bits
+  pf_queue_filter.io.l2_pf_addr.ready := io.l2_req.ready
 
   val l3_in_pmem = PmemRanges.map(_.cover(pf_queue_filter.io.l3_pf_addr.bits.addr)).reduce(_ || _)
   io.l3_req.valid := pf_queue_filter.io.l3_pf_addr.valid && l3_in_pmem && enable
   io.l3_req.bits := pf_queue_filter.io.l3_pf_addr.bits
+  pf_queue_filter.io.l3_pf_addr.ready := io.l3_req.ready
 }

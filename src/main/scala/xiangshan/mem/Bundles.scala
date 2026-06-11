@@ -25,11 +25,8 @@ import xiangshan._
 import xiangshan.backend.Bundles._
 import xiangshan.backend.rob.RobPtr
 import xiangshan.cache._
-import xiangshan.cache.wpu.ReplayCarry
 import xiangshan.frontend.ftq.FtqPtr
-import xiangshan.frontend.PreDecodeInfo
-import xiangshan.mem.prefetch.{PrefetchReqBundle, TrainReqBundle}
-import xiangshan.backend.exu.ExeUnitParams
+import xiangshan.mem.prefetch._
 
 import scala.math._
 
@@ -37,46 +34,34 @@ object Bundles {
 
   object StLdNukeMatchType {
     def Normal      = "b00".U
-    def QuadWord    = "b01".U
     def CacheLine   = "b10".U
 
     def isNormal(matchType: UInt)    = matchType === Normal
-    def isQuadWord(matchType: UInt)  = matchType === QuadWord
     def isCacheLine(matchType: UInt) = matchType === CacheLine
 
     def apply() = UInt(2.W)
   }
 
-  class LsPipelineBundle(implicit p: Parameters) extends XSBundle
-    with HasDCacheParameters
+  class LoadUncacheReplayBundle(implicit p: Parameters) extends XSBundle
+    with HasDCacheParameters {
+    val uop = new DynInst
+    val paddr = UInt(PAddrBits.W)
+    val data = UInt(XLEN.W)
+  }
+
+  class LqWriteBundle(implicit p: Parameters) extends XSBundle
     with HasVLSUParameters {
     val uop = new DynInst
     val vaddr = UInt(VAddrBits.W)
     val fullva = UInt(XLEN.W)
-    val vaNeedExt = Bool()
     val paddr = UInt(PAddrBits.W)
     val gpaddr = UInt(XLEN.W)
     val mask = UInt((VLEN/8).W)
-    val data = UInt((VLEN+1).W)
-    val wlineflag = Bool() // store write the whole cache line
-    val miss = Bool()
-    val tlbMiss = Bool()
-    val ptwBack = Bool()
-    val af = Bool()
     val nc = Bool()
     val mmio = Bool()
-    val memBackTypeMM = Bool() // 1: main memory, 0: IO
-    val hasException = Bool()
+    val memBackTypeMM = Bool()
     val isHyper = Bool()
     val isForVSnonLeafPTE = Bool()
-    val isPrefetch = Bool()
-    val isHWPrefetch = Bool()
-    val forwardMask = Vec(VLEN/8, Bool())
-    val forwardData = Vec(VLEN/8, UInt(8.W))
-    val ldCancel = ValidUndirectioned(UInt(log2Ceil(LoadPipelineWidth).W))
-    // val func                = UInt(6.W)
-
-    // vector
     val isvec = Bool()
     val isLastElem = Bool()
     val is128bit = Bool()
@@ -88,142 +73,15 @@ object Bundles {
     val reg_offset = UInt(vOffsetBits.W)
     val elemIdxInsideVd = UInt(elemIdxBits.W)
     val is_first_ele = Bool()
-    val vecBaseVaddr = UInt(VAddrBits.W)
-    val vecVaddrOffset = UInt(VAddrBits.W)
-    val vecTriggerMask = UInt((VLEN/8).W)
-    // 1: vector active element or scala mem operation, 0: vector not active element
     val vecActive = Bool()
-    // val flowPtr             = new VlflowPtr() // VLFlowQueue ptr
-    // val sflowPtr            = new VsFlowPtr() // VSFlowQueue ptr
-    // val rob_idx_valid       = Vec(2,Bool())
-    // val inner_idx           = Vec(2,UInt(3.W))
-    // val rob_idx             = Vec(2,new RobPtr)
-    // val offset              = Vec(2,UInt(4.W))
-
-    // replay
     val isLoadReplay = Bool()
-    val isFastPath = Bool()
-    val isFastReplay = Bool()
-    val replayCarry = new ReplayCarry(nWays)
-    val isFirstIssue = Bool()
-    val hasROBEntry = Bool()
-    val mshrid = UInt(log2Up(cfg.nMissEntries).W)
-    val handledByMSHR= Bool()
-    val replacementUpdated  = Bool()
+    val handledByMSHR = Bool()
+    val replacementUpdated = Bool()
     val missDbUpdated = Bool()
-    val forward_tlDchannel = Bool()
-    val dcacheRequireReplay = Bool()
-    val delayedLoadError = Bool()
-    val lateKill = Bool()
-    val feedbacked = Bool()
     val schedIndex = UInt(log2Up(LoadQueueReplaySize).W)
-    val tlbNoQuery = Bool()
-
-    // misalign
-    val isFrmMisAlignBuf = Bool()
-    val isMisalign = Bool()
-    val isFinalSplit = Bool()
-    val misalignWith16Byte = Bool()
-    val misalignNeedWakeUp = Bool()
     val updateAddrValid = Bool()
-
-    def isSWPrefetch: Bool = isPrefetch && !isHWPrefetch
-    def toExuOutput(param: ExeUnitParams): ExuOutput = {
-      val output = Wire(new ExuOutput(param))
-      output.data   := VecInit(Seq.fill(param.wbPathNum)(this.data))
-      output.pdest  := this.uop.pdest
-      output.robIdx := this.uop.robIdx
-      output.intWen.foreach(_ := this.uop.rfWen)
-      output.fpWen.foreach(_ := this.uop.fpWen)
-      output.vecWen.foreach(_ := this.uop.vecWen)
-      output.v0Wen.foreach(_ := this.uop.v0Wen)
-      output.vlWen.foreach(_ := this.uop.vlWen)
-      output.exceptionVec.foreach(_ := this.uop.exceptionVec)
-      output.flushPipe.foreach(_ := this.uop.flushPipe)
-      output.replay.foreach(_ := this.uop.replayInst)
-      // output.debug := this.debug
-      output.perfDebugInfo.foreach(_ := this.uop.perfDebugInfo)
-      output.debug_seqNum.foreach(_ := this.uop.debug_seqNum)
-      output.lqIdx.foreach(_ := this.uop.lqIdx)
-      output.sqIdx.foreach(_ := this.uop.sqIdx)
-      output.isRVC.foreach(_ := this.uop.isRVC)
-      output.vls.foreach(x => {
-        // x.vdIdx := this.vdIdx.get
-        // x.vdIdxInField := this.vdIdxInField.get
-        x.vpu   := this.uop.vpu
-        x.oldVdPsrc := this.uop.psrc(2)
-        x.isIndexed := VlduType.isIndexed(this.uop.fuOpType)
-        x.isMasked := VlduType.isMasked(this.uop.fuOpType)
-        x.isStrided := VlduType.isStrided(this.uop.fuOpType)
-        x.isWhole := VlduType.isWhole(this.uop.fuOpType)
-        x.isVecLoad := VlduType.isVecLd(this.uop.fuOpType)
-        x.isVlm := VlduType.isMasked(this.uop.fuOpType) && VlduType.isVecLd(this.uop.fuOpType)
-      })
-      // output.isFromLoadUnit.foreach(_ := this.isFromLoadUnit)
-      output.trigger.foreach(_ := this.uop.trigger)
-      output
-    }
-  }
-
-  class LsPrefetchTrainBundle(implicit p: Parameters) extends LsPipelineBundle {
-    val meta_prefetch = UInt(L1PfSourceBits.W)
-    val meta_access = Bool()
-    val is_from_hw_pf = Bool() // s0 source is from prefetch
-    val refillLatency = UInt(LATENCY_WIDTH.W)
-
-    def fromLsPipelineBundle(input: LsPipelineBundle, latch: Boolean = false, enable: Bool = true.B) = {
-      val inputReg = latch match {
-        case true   => RegEnable(input, enable)
-        case false  => input
-      }
-      connectSamePort(this, inputReg)
-      // The remaining variables must be assigned outside the function to ensure correctness
-    }
-
-    def toPrefetchReqBundle(): PrefetchReqBundle = {
-      val res = Wire(new PrefetchReqBundle)
-      res.vaddr := this.vaddr
-      res.paddr := this.paddr
-      res.pc := this.uop.pc
-      res.miss := this.miss
-      res.pfHitStream := isFromStream(this.meta_prefetch)
-      res
-    }
-
-    def toTrainReqBundle(): TrainReqBundle = {
-      val res = Wire(new TrainReqBundle)
-      res.vaddr := this.vaddr
-      res.paddr := this.paddr
-      res.pc := this.uop.pc
-      res.miss := this.miss
-      res.metaSource := this.meta_prefetch
-      res.refillLatency := this.refillLatency
-      res
-    }
-  }
-
-  class LqWriteBundle(implicit p: Parameters) extends LsPipelineBundle {
     // load inst replay informations
     val rep_info = new LoadToLsqReplayIO
-    val nc_with_data = Bool() // nc access with data
-    // queue entry data, except flag bits, will be updated if writeQueue is true,
-    // valid bit in LqWriteBundle will be ignored
-    val data_wen_dup = Vec(6, Bool()) // dirty reg dup
-
-    def fromLsPipelineBundle(input: LsPipelineBundle, latch: Boolean = false, enable: Bool = true.B) = {
-      val inputReg = latch match {
-        case true   => RegEnable(input, enable)
-        case false  => input
-      }
-      connectSamePort(this, inputReg)
-      this.rep_info := DontCare
-      this.nc_with_data := DontCare
-      this.data_wen_dup := DontCare
-    }
-  }
-
-  class SqWriteBundle(implicit p: Parameters) extends LsPipelineBundle {
-    val need_rep = Bool()
   }
 
   class StoreForwardReqS0(implicit p: Parameters) extends XSBundle {
@@ -273,6 +131,11 @@ object Bundles {
     val s1Req = Output(new StoreForwardReqS1)
     val s1Kill = Output(Bool())
     val s2Resp = Flipped(ValidIO(new SbufferForwardResp))
+  }
+
+  class SbufferForwardReq(implicit p: Parameters) extends XSBundle {
+    val s0Req = ValidIO(new StoreForwardReqS0)
+    val s1Req = Output(new StoreForwardReqS1)
   }
 
   class SQForward(implicit p: Parameters) extends XSBundle {

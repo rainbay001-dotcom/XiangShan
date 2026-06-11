@@ -23,15 +23,15 @@
 
 package xiangshan.frontend.icache
 
-import coupledL2.MemBackTypeMMField
 import freechips.rocketchip.diplomacy.IdRange
 import freechips.rocketchip.diplomacy.LazyModule
 import freechips.rocketchip.tilelink.TLClientNode
 import freechips.rocketchip.tilelink.TLMasterParameters
 import freechips.rocketchip.tilelink.TLMasterPortParameters
-import huancun.AliasField
 import org.chipsalliance.cde.config.Parameters
 import utility.ReqSourceField
+import xscache.common.AliasField
+import xscache.coupledL2.MemBackTypeMMField
 
 class ICache()(implicit p: Parameters) extends LazyModule with HasICacheParameters {
   override def shouldBeInlined: Boolean = false

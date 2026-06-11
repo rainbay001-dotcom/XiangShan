@@ -369,7 +369,6 @@ object FuConfig {
     ),
     piped = false,
     latency = UncertainLatency(),
-    exceptionOut = Seq(illegalInstr, virtualInstr),
     flushPipe = true
   )
 
@@ -441,7 +440,7 @@ object FuConfig {
     writeIntRf = true,
     writeFpRf = true,
     latency = UncertainLatency(3),
-    exceptionOut = Seq(loadAddrMisaligned, loadAccessFault, loadPageFault, loadGuestPageFault, breakPoint, hardwareError),
+    exceptionOut = Seq(loadAddrMisaligned, loadAccessFault, loadPageFault, loadGuestPageFault, storeAddrMisaligned, storeAccessFault, storePageFault, storeGuestPageFault, breakPoint, hardwareError), // for sc from atomics unit
     flushPipe = false,
     replayInst = false,
     hasLoadError = true,

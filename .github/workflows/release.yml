@@ -5,6 +5,13 @@ on:
     branches: [ kunminghu-v3 ]
   pull_request:
     branches: [ kunminghu-v3 ]
+  workflow_call:
+    inputs:
+      test_branch:
+        description: Branch or commit to run release jobs on
+        required: false
+        type: string
+        default: kunminghu-v3
 
 env:
   NOOP_HOME: ${{ github.workspace }}
@@ -19,7 +26,17 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Set test branch or commit
+        id: set_test
+        run: |
+          REF="${{ inputs.test_branch || github.ref }}"
+          echo "Using checkout ref: ${REF}"
+          echo "commit_sha=${REF}" >> $GITHUB_OUTPUT
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.set_test.outputs.commit_sha }}
 
       - name: Initialize submodules 
         run: make init-force
@@ -56,8 +73,17 @@ jobs:
       - builder
       - open # use open servers only, keep node servers for emu jobs
     steps:
-      - uses: actions/checkout@v6
+      - name: Set test branch or commit
+        id: set_test
+        run: |
+          REF="${{ inputs.test_branch || github.ref }}"
+          echo "Using checkout ref: ${REF}"
+          echo "commit_sha=${REF}" >> $GITHUB_OUTPUT
+
+      - name: Checkout code
+        uses: actions/checkout@v6
         with:
+          ref: ${{ steps.set_test.outputs.commit_sha }}
           fetch-depth: 0
           submodules: true
       - name: set env
@@ -98,7 +124,17 @@ jobs:
     name: Upload Artifacts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Set test branch or commit
+        id: set_test
+        run: |
+          REF="${{ inputs.test_branch || github.ref }}"
+          echo "Using checkout ref: ${REF}"
+          echo "commit_sha=${REF}" >> $GITHUB_OUTPUT
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.set_test.outputs.commit_sha }}
       - name: Install deps
         run: |
           sudo apt install python3-psutil

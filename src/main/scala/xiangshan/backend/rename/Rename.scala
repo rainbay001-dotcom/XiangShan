@@ -31,7 +31,6 @@ import xiangshan.backend.{StoreBubbleReason, PipelineStallReason}
 import xiangshan.backend.rename.freelist._
 import xiangshan.backend.rob.{RobEnqIO, RobPtr}
 import xiangshan.mem.mdp._
-import xiangshan.ExceptionNO._
 import xiangshan.backend.fu.FuType._
 import xiangshan.mem.{EewLog2, GenUSWholeEmul}
 import xiangshan.mem.GenRealFlowNum
@@ -95,6 +94,9 @@ class Rename(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHe
     // perf only
     val debugDispatchAllFire = OptionWrapper(backendParams.debugEn, Input(Bool()))
     val debugOutValidVec = OptionWrapper(backendParams.debugEn, Vec(RenameWidth, Input(Bool())))
+    val debugRobHeadFuType = Option.when(backendParams.debugEn)(Input(FuType()))
+    val debugRobHeadStall = Option.when(backendParams.debugEn)(Input(Bool()))
+    val debugLoadReason = Option.when(backendParams.debugEn)(Input(UInt(log2Ceil(TopDownCounters.NumStallReasons.id).W)))
     val stallReason = new Bundle {
       val in = Flipped(new StallReasonIO(RenameWidth))
       val out = new StallReasonIO(RenameWidth)
@@ -402,7 +404,7 @@ class Rename(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHe
 
   val isMove = Wire(Vec(RenameWidth, Bool()))
   isMove zip io.in.map(_.bits) foreach {
-    case (move, in) => move := Mux(in.exceptionVec.asUInt.orR, false.B, in.isMove)
+    case (move, in) => move := Mux(in.exceptionVec.orR, false.B, in.isMove)
   }
 
   val walkNeedIntDest = WireDefault(VecInit(Seq.fill(RenameWidth)(false.B)))
@@ -471,7 +473,7 @@ class Rename(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHe
     uops(i).robIdx := robIdxHead + PopCount(io.in.zip(needRobFlags).zip(io.validVec).take(i).map{ case((in, needRobFlag), valid) => valid && in.bits.lastUop && needRobFlag})
     instrSize(i) := instrSizesVec(i) + io.fusionCross2FtqVec(i)
     uops(i).debug.foreach(_.fusionNum := PopCount(compressMasksVec(i) & Cat(io.isFusionVec.reverse)))
-    val hasExceptionExceptFlushPipe = Cat(selectFrontend(uops(i).exceptionVec) :+ uops(i).exceptionVec(illegalInstr) :+ uops(i).exceptionVec(virtualInstr)).orR || TriggerAction.isDmode(uops(i).trigger)
+    val hasExceptionExceptFlushPipe = uops(i).exceptionVec.orR || TriggerAction.isDmode(uops(i).trigger)
     when(isMove(i) || hasExceptionExceptFlushPipe) {
       uops(i).numWB := 0.U
     }
@@ -760,7 +762,7 @@ class Rename(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHe
   val allowSnpt = if (EnableRenameSnapshot) notInSameSnpt && !lastCycleCreateSnpt && io.in.head.bits.firstUop else false.B
   io.out.zip(io.in).foreach{ case (out, in) => out.bits.snapshot := allowSnpt && FuType.isJump(in.bits.fuType) && in.fire }
   io.out.map{ x =>
-    x.bits.hasException := Cat(selectFrontend(x.bits.exceptionVec) :+ x.bits.exceptionVec(illegalInstr) :+ x.bits.exceptionVec(virtualInstr)).orR || TriggerAction.isDmode(x.bits.trigger)
+    x.bits.hasException := x.bits.exceptionVec.orR || TriggerAction.isDmode(x.bits.trigger)
   }
   if(backendParams.debugEn){
     dontTouch(robIdxHeadNext)
@@ -925,15 +927,33 @@ class Rename(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHe
     !vlFreeList.io.canAllocate,
   )) > 1.U
 
-  renameStallReason := MuxCase(BackendOtherCoreStall.id.U, Seq(
-    redirectStall -> redirectStallReason,
-    recStall      -> recStallReason,
+  // TODO make all stall reason option to remove getorElse
+  val robHeadStall = io.debugRobHeadStall.getOrElse(false.B)
+  val robHeadFutype = io.debugRobHeadFuType.getOrElse(0.U)
+  val ldReason = io.debugLoadReason.getOrElse(0.U)
+
+  val robHeadStallReason = MuxCase(OtherNotReadyStall.id.U, Seq(
+    FuType.isAMO(robHeadFutype)          -> AtomicStall.id.U          ,
+    FuType.isStoreVstore(robHeadFutype)  -> StoreStall.id.U           ,
+    FuType.isLoadVload(robHeadFutype)    -> ldReason                  ,
+    FuType.isDivSqrt(robHeadFutype)      -> DivStall.id.U             ,
+    FuType.isInt(robHeadFutype)          -> IntNotReadyStall.id.U     ,
+    FuType.isFArith(robHeadFutype)       -> FPNotReadyStall.id.U      ,
+  ))
+  val freelistStall = intFlStall || fpFlStall || vecFlStall || v0FlStall || vlFlStall
+  val freelistStallReason = MuxCase(BackendOtherCoreStall.id.U, Seq(
+    robHeadStall  -> robHeadStallReason,
     multiFlStall  -> MultiFlStall.id.U,
     intFlStall    -> IntFlStall.id.U,
     fpFlStall     -> FpFlStall.id.U,
     vecFlStall    -> VecFlStall.id.U,
     v0FlStall     -> V0FlStall.id.U,
     vlFlStall     -> VlFlStall.id.U,
+  ))
+  renameStallReason := MuxCase(BackendOtherCoreStall.id.U, Seq(
+    redirectStall -> redirectStallReason,
+    recStall      -> recStallReason,
+    freelistStall -> freelistStallReason,
   ))
 
   // current pipe bubble

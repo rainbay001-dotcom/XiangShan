@@ -70,7 +70,6 @@ object RobBundles extends HasCircularQueuePtrHelper {
     val realDestSize = UInt(log2Up(MaxUopSize + 1).W)
     val uopNum = UInt(log2Up(MaxUopSize + 1).W)
     val needFlush = Bool()
-    val crossFtqCommit = UInt(2.W) // 59 bit
     // status end
 
     // debug_begin
@@ -91,6 +90,9 @@ object RobBundles extends HasCircularQueuePtrHelper {
     val debug_v0Wen      = OptionWrapper(backendParams.debugEn, Bool() )
     val debug_commitType = OptionWrapper(backendParams.debugEn, CommitType() )
     // debug_end
+    // topdown
+    val topdownIssued    = OptionWrapper(backendParams.debugEn, Bool())
+    val topdownIssueTime = OptionWrapper(backendParams.debugEn, UInt(XLEN.W))
 
     def isWritebacked: Bool = !uopNum.orR
     def isUopWritebacked: Bool = !uopNum.orR
@@ -118,7 +120,6 @@ object RobBundles extends HasCircularQueuePtrHelper {
     val fpWen = Bool()
     val rfWen = Bool()
     val needFlush = Bool()
-    val crossFtqCommit = UInt(2.W)
     // trace
     val traceBlockInPipe = new TracePipe(IretireWidthEncoded)
     // debug_begin
@@ -148,7 +149,6 @@ object RobBundles extends HasCircularQueuePtrHelper {
     robEntry.dirtyVs := robEnq.dirtyVs
     // flushPipe needFlush but not exception
     robEntry.needFlush := robEnq.hasException || robEnq.flushPipe
-    robEntry.crossFtqCommit := robEnq.crossFtqCommit
     // trace
     robEntry.traceBlockInPipe := robEnq.traceBlockInPipe
     robEntry.debug_ldest.foreach(_ := robEnq.ldest)
@@ -167,6 +167,8 @@ object RobBundles extends HasCircularQueuePtrHelper {
       robEntry.perfDebugInfo.foreach(_ := debug.perfDebugInfo)
       robEntry.debug_sim_trig.foreach(_ := debug.debug_sim_trig)
     }
+    robEntry.topdownIssued.foreach(_ := false.B)
+    robEntry.topdownIssueTime.foreach(_ := 0.U)
   }
 
   def connectCommitEntry(robCommitEntry: RobCommitEntryBundle, robEntry: RobEntryBundle): Unit = {
@@ -192,7 +194,6 @@ object RobBundles extends HasCircularQueuePtrHelper {
     robCommitEntry.dirtyFs := robEntry.fpWen || robEntry.wflags
     robCommitEntry.dirtyVs := robEntry.dirtyVs
     robCommitEntry.needFlush := robEntry.needFlush
-    robCommitEntry.crossFtqCommit := robEntry.crossFtqCommit
     robCommitEntry.traceBlockInPipe := robEntry.traceBlockInPipe
     robCommitEntry.debug_pc.foreach(_ := robEntry.debug_pc.get)
     robCommitEntry.debug_instr.foreach(_ := robEntry.debug_instr.get)
@@ -287,7 +288,7 @@ class RobDebugRollingIO extends Bundle {
   val robTrueCommit = Output(UInt(64.W))
 }
 
-class RobExceptionInfo(implicit p: Parameters) extends XSBundle {
+class RobExceptionInfo(exceptList: Seq[Int]=ExceptionNO.all)(implicit p: Parameters) extends XSBundle {
   // val valid = Bool()
   val robIdx = new RobPtr
   val ftqPtr = new FtqPtr
@@ -297,7 +298,7 @@ class RobExceptionInfo(implicit p: Parameters) extends XSBundle {
   // This signal is valid iff currentValid is true
   // 0: is execute exception, 1: is fetch exception
   val isEnqExcp = Bool()
-  val exceptionVec = ExceptionVec()
+  val exceptionVec = ExceptSparseVec(exceptList)
   val isFetchMalAddr = Bool()
   val flushPipe = Bool()
   val isVset = Bool()

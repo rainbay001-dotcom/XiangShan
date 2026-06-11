@@ -7,11 +7,6 @@ on:
         description: Branch or commit to run performance test on
         required: true
         type: string
-      recompile:
-        description: Recompile the emu
-        required: false
-        type: string
-        default: false
       emulator:
         description: emulator to use
         required: false
@@ -21,7 +16,7 @@ on:
         description: Config for XiangShan core
         required: false
         type: string
-        default: CHIConfig
+        default: DefaultConfig
       benchmark_type:
         required: false
         type: string
@@ -31,6 +26,10 @@ on:
         description: Specific benchmarks to run (comma-separated), leave empty to run all
         required: false
         type: string
+      cst_file:
+          description: Constantin file path (empty for default init setting, or file path for specific file)
+          required: false
+          type: string
       servers:
         description: Servers to run emulation on, leave empty to let the script select
         required: false
@@ -65,7 +64,7 @@ on:
         value: ${{ inputs.xs_config }}
       SCORE_FILE:
         description: Path to the score.txt generated in this run
-        value: ${{ jobs.run.outputs.SPEC_DIR }}/score.txt
+        value: ${{ jobs.run.outputs.SCORE_FILE }}
 
 jobs:
   run:
@@ -78,6 +77,7 @@ jobs:
       SHORT_SHA: ${{ steps.set_env.outputs.SHORT_SHA }}
       DATE: ${{ steps.set_env.outputs.DATE }}
       SPEC_DIR: ${{ steps.set_env.outputs.SPEC_DIR }}
+      SCORE_FILE: ${{ steps.set_env.outputs.SCORE_FILE }}
     steps:
       - name: Set test branch or commit
         id: set_test
@@ -98,11 +98,9 @@ jobs:
           SHORT_SHA=$(git rev-parse --short HEAD)
           DATE=$(git show -s --format=%cd --date=format:%y%m%d HEAD)
           echo "SCRIPTS_HOME=/nfs/home/share/ci-workloads/env-scripts" >> $GITHUB_ENV
-          echo "SPEC_DIR=${{ inputs.perf_report_dir }}/cr${DATE}-${SHORT_SHA}-${{ inputs.xs_config }}" >> $GITHUB_ENV
           echo "SHORT_SHA=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "DATE=${DATE}" >> $GITHUB_OUTPUT
-          echo "SPEC_DIR=${{ inputs.perf_report_dir }}/cr${DATE}-${SHORT_SHA}-${{ inputs.xs_config }}" >> $GITHUB_OUTPUT
-          
+
           if [[ -z "${{ inputs.servers }}" ]]; then
             if [[ "${{ inputs.emulator }}" == "gsim" ]]; then
               echo "SERVER_LIST=node" >> $GITHUB_ENV
@@ -113,6 +111,26 @@ jobs:
             echo "SERVER_LIST=${{ inputs.servers }}" >> $GITHUB_ENV
           fi
 
+          SPEC_TAG="-${{ inputs.xs_config }}"
+          # Set CST_COMPILE_OPT and CST_RUN_OPT based on cst_file
+          if [[ -n "${{ inputs.cst_file }}" ]]; then
+            if [[ ! -f "${{ inputs.cst_file }}" ]]; then
+              echo "Error: cst_file does not exist: ${{ inputs.cst_file }}"
+              exit 1
+            fi
+            CONST_BASENAME=$(basename "${{ inputs.cst_file }}")
+            CONST_TAG=${CONST_BASENAME%.*}
+            SPEC_TAG="${SPEC_TAG}-${CONST_TAG}"
+
+            echo "CST_COMPILE_OPT=--with-constantin" >> $GITHUB_ENV
+            echo "CST_RUN_OPT=--cst-file ${{ inputs.cst_file }}" >> $GITHUB_ENV
+          else
+            echo "CST_COMPILE_OPT=" >> $GITHUB_ENV
+            echo "CST_RUN_OPT=" >> $GITHUB_ENV
+          fi
+          SPEC_DIR="${{ inputs.perf_report_dir }}/cr${DATE}-${SHORT_SHA}${SPEC_TAG}"
+
+          DRY_RUN_OPT=""
           case "${{ inputs.benchmark_type }}" in
             "gcc15-spec06-0.3c")
               echo "CKPT_JSON_PATH=/nfs/home/share/ci-workloads/json/gcc15-spec06-0.3.json" >> $GITHUB_ENV
@@ -154,7 +172,31 @@ jobs:
               echo "CKPT_JSON_PATH=${{ inputs.json_path }}" >> $GITHUB_ENV
               echo "CKPT_HOME=${{ inputs.checkpoint_path }}" >> $GITHUB_ENV
               ;;
+            "dryrun")
+              echo "CKPT_JSON_PATH=/nfs/home/share/ci-workloads/json/dryrun.json" >> $GITHUB_ENV
+              echo "CKPT_HOME=/nfs/home/share/checkpoints_profiles/spec06_rv64gcb_O3_20m_gcc12.2.0-intFpcOff-jeMalloc/checkpoint-0-0-0" >> $GITHUB_ENV
+
+              echo "dryrun testing:"
+              echo "    default SPEC_DIR: ${SPEC_DIR}"
+              SPEC_DIR="${{ inputs.perf_report_dir }}/dryrun${SPEC_TAG}"
+              echo "    dryrun SPEC_DIR: ${SPEC_DIR}"
+              DRY_RUN_OPT="--dry-run"
+              ;;
+            *)
+              echo "Error: Invalid benchmark_type: ${{ inputs.benchmark_type }}"
+              exit 1
+              ;;
           esac
+
+          echo "SPEC_DIR=${SPEC_DIR}" >> $GITHUB_ENV
+          echo "SPEC_DIR=${SPEC_DIR}" >> $GITHUB_OUTPUT
+
+          # append benchmark_type to score.txt filename, to prevent race condition in "python3 xs_autorun_multiServer.py --report"
+          SCORE_FILE="${SPEC_DIR}/score-${{ inputs.benchmark_type }}.txt"
+          echo "SCORE_FILE=${SCORE_FILE}" >> $GITHUB_ENV
+          echo "SCORE_FILE=${SCORE_FILE}" >> $GITHUB_OUTPUT
+
+          echo "DRY_RUN_OPT=${DRY_RUN_OPT}" >> $GITHUB_ENV
 
       - name: Initialize submodules
         run: make init-force
@@ -165,16 +207,17 @@ jobs:
 
       - name: Build EMU with DRAMsim3
         run: |
-          if [ ! -e "$SPEC_DIR/emu" ] || [ "${{ inputs.recompile }}" = "true" ]; then
+          if [ ! -e "$SPEC_DIR/emu-${{ inputs.emulator }}" ]; then
             python3 $GITHUB_WORKSPACE/scripts/xiangshan.py --build \
               --config "${{ inputs.xs_config }}" \
               --dramsim3 /nfs/home/share/ci-workloads/DRAMsim3 --with-dramsim3 \
               --threads $([ "${{ inputs.emulator }}" = "gsim" ] && echo 1 || echo 8) \
               --pgo $GITHUB_WORKSPACE/ready-to-run/coremark-2-iteration.bin \
               --llvm-profdata llvm-profdata --trace-fst \
-              --emulator ${{ inputs.emulator }}
+              --emulator ${{ inputs.emulator }} \
+              $CST_COMPILE_OPT
             mkdir -p $SPEC_DIR
-            cp $GITHUB_WORKSPACE/build/emu $SPEC_DIR/emu
+            cp $GITHUB_WORKSPACE/build/emu "$SPEC_DIR/emu-${{ inputs.emulator }}"
           fi
           if [ ! -e "$SPEC_DIR/riscv64-nemu-interpreter-so" ]; then
             cp $GITHUB_WORKSPACE/ready-to-run/riscv64-nemu-interpreter-so $SPEC_DIR/riscv64-nemu-interpreter-so
@@ -184,13 +227,14 @@ jobs:
         run: |
           cd $SCRIPTS_HOME/perf_trigger
           python3 main.py --gcpt-path $CKPT_HOME --json-path $CKPT_JSON_PATH \
-            --emu-path $SPEC_DIR/emu --result-path $SPEC_DIR \
+            --emu-path "$SPEC_DIR/emu-${{ inputs.emulator }}" --result-path $SPEC_DIR \
             --threads $([ "${{ inputs.emulator }}" = "gsim" ] && echo 1 || echo 8) \
             --benchmarks "${{ inputs.benchmarks }}" \
             --server-list "$SERVER_LIST" \
             --nemu-so-path $SPEC_DIR/riscv64-nemu-interpreter-so \
             --log-level ${{ runner.debug && 'DEBUG' || 'INFO' }} \
-            --run
+            --run \
+            $CST_RUN_OPT $DRY_RUN_OPT
 
       - name: Report SPEC CPU2006 score
         if: always()
@@ -199,23 +243,23 @@ jobs:
           python3 xs_autorun_multiServer.py $CKPT_HOME $CKPT_JSON_PATH \
             --benchmarks "${{ inputs.benchmarks }}" \
             --xs $GITHUB_WORKSPACE --threads 16 --dir $SPEC_DIR --report \
-            > $SPEC_DIR/score.txt
+            > "$SCORE_FILE"
 
       - name: Summary result
         if: always()
         run: |
           echo "### :rocket: Performance Test Result" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$SPEC_DIR/score.txt" >> $GITHUB_STEP_SUMMARY
-          cat $SPEC_DIR/score.txt >> $GITHUB_STEP_SUMMARY
+          echo "$SCORE_FILE" >> $GITHUB_STEP_SUMMARY
+          cat "$SCORE_FILE" >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          
+
           echo "### :rainbow: Key Indicators" >> $GITHUB_STEP_SUMMARY
           echo "Estimated SPEC CPU2006 Score per GHz: " >> $GITHUB_STEP_SUMMARY
-          TOTAL_SCORE=$(grep "SPEC2006/GHz:" $SPEC_DIR/score.txt | awk '{print $NF}')
-          INT_SCORE=$(grep "SPECint2006/GHz" $SPEC_DIR/score.txt | awk '{print $(NF-1)}')
-          FP_SCORE=$(grep "SPECfp2006/GHz" $SPEC_DIR/score.txt | awk '{print $(NF-1)}')
+          TOTAL_SCORE=$(grep "SPEC2006/GHz:" "$SCORE_FILE" | awk '{print $NF}')
+          INT_SCORE=$(grep "SPECint2006/GHz" "$SCORE_FILE" | awk '{print $(NF-1)}')
+          FP_SCORE=$(grep "SPECfp2006/GHz" "$SCORE_FILE" | awk '{print $(NF-1)}')
           echo "- int: **${INT_SCORE}**" >> $GITHUB_STEP_SUMMARY
           echo "- fp: **${FP_SCORE}**" >> $GITHUB_STEP_SUMMARY
           echo "- total: **${TOTAL_SCORE}**" >> $GITHUB_STEP_SUMMARY

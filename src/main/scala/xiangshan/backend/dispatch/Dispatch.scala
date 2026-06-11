@@ -94,7 +94,9 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
   }
 
   val exuNum = allExuParams.size
-  val maxIQSize = allIssueParams.map(_.numEntries).max
+  val enableDispatchIQBalanceOpt = coreParams.EnableDispatchIQBalanceOpt
+  // + 6 because that need add 3 cycle enqNum
+  val maxIQSize = allIssueParams.map(_.numEntries).max + (if (enableDispatchIQBalanceOpt) 6 else 0)
   val IQEnqSum = allIssueParams.map(_.numEnq).sum
   val issueQueueNum = allIssueParams.size
 
@@ -153,15 +155,13 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
     // perf only
     val robHeadFuType = Input(FuType())
     val stallReason = Flipped(new StallReasonIO(RenameWidth))
-    val robHeadNotReady = Input(Bool())
     val debugBlockBackward = Option.when(backendParams.debugEn)(Input(Bool()))
     val debugWaitForward   = Option.when(backendParams.debugEn)(Input(Bool()))
     val debugIQValidNumVec = Option.when(backendParams.debugEn)(Vec(issueQueueNum, Input(UInt(maxIQSize.U.getWidth.W))))
     val debugIQEnqHasIssuedVec = Option.when(backendParams.debugEn)(Vec(issueQueueNum, Input(Bool())))
-    val debugTopDown = new Bundle {
-      val fromRob = Flipped(new RobDispatchTopDownIO)
-      val fromCore = new CoreDispatchTopDownIO
-    }
+    val debugRobHeadStall = Option.when(backendParams.debugEn)(Input(Bool()))
+    val debugLoadReason = Option.when(backendParams.debugEn)(Input(UInt(log2Ceil(TopDownCounters.NumStallReasons.id).W)))
+    val debugRobTrueCommit = Option.when(backendParams.debugEn)(Input(UInt(64.W)))
   })
   // Deq for std's IQ is not assigned in Dispatch2Iq, so add one more src for it.
   val issueBlockParams = backendParams.allIssueParams
@@ -188,7 +188,6 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
   }
 
   val renameWidth = io.fromRename.size
-  val issueQueueCount = io.IQValidNumVec
   // int fp vec v0
   val numRegType = 4
   val idxRegTypeInt = allFuConfigs.map(x => {
@@ -414,6 +413,20 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
     }
   }
 
+  val uopSelIQ = Reg(Vec(renameWidth, Vec(issueQueueNum, Bool())))
+  val needAppendIQValidNumVec = Wire(Vec(exuNum, UInt(RenameWidth.U.getWidth.W)))
+  allExuParams.zipWithIndex.map { case (exuParams, iqDeqIdx) => {
+    val iqidx = allIssueParams.indexWhere(_.exuBlockParams.contains(exuParams))
+    val selIQNumReg = PopCount(uopSelIQ.zipWithIndex.map { case (u, i) =>
+      RegNext(u(iqidx) && FuType.FuTypeOrR(fromRename(i).bits.fuType, exuParams.fuConfigs.map(_.fuType)) && fromRename(i).fire)
+    })
+    val selIQNum = PopCount(uopSelIQ.zipWithIndex.map { case (u, i) =>
+      u(iqidx) && FuType.FuTypeOrR(fromRename(i).bits.fuType, exuParams.fuConfigs.map(_.fuType))
+    })
+    needAppendIQValidNumVec(iqDeqIdx) := (if (enableDispatchIQBalanceOpt) selIQNum else 0.U)
+  }}
+  val issueQueueCount = VecInit(io.IQValidNumVec.zip(needAppendIQValidNumVec).map(x => RegNext(x._1 + x._2)))
+  val issueQueueCountAddEnq = VecInit(issueQueueCount.zip(needAppendIQValidNumVec).map(x => x._1 + x._2))
   val minIQSelAll = Wire(Vec(needMultiExu.size, Vec(renameWidth, Vec(issueQueueNum, Bool()))))
   needMultiExu.zipWithIndex.map{ case ((fus, exuidx), needMultiExuidx) => {
     val suffix = fus.map(_.name).mkString("_")
@@ -424,18 +437,49 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
     for (i <- 0 until iqNum) {
       for (j <- 0 until iqNum) {
         if (i == j) compareMatrix(i)(j) := false.B
-        else if (i < j) compareMatrix(i)(j) := issueQueueCount(exuidx(i)) < issueQueueCount(exuidx(j))
+        else if (i < j) compareMatrix(i)(j) := issueQueueCountAddEnq(exuidx(i)) < issueQueueCountAddEnq(exuidx(j))
         else compareMatrix(i)(j) := !compareMatrix(j)(i)
       }
     }
     val IQSort = Reg(Vec(iqNum, Vec(iqNum, Bool()))).suggestName(s"IQSort_$suffix}")
+    val IQSortWire = Wire(Vec(iqNum, Vec(iqNum, Bool()))).suggestName(s"IQSortWire_$suffix}")
+    IQSort := IQSortWire
+    val IQSortValidCnt = Reg(Vec(iqNum, UInt(maxIQSize.U.getWidth.W))).suggestName(s"IQSortValidCnt_$suffix}")
+    val IQSortValidCntAddEnq = Wire(Vec(iqNum, UInt(maxIQSize.U.getWidth.W))).suggestName(s"IQSortValidCntAddEnq_$suffix}")
     for (i <- 0 until iqNum){
       // i = 0 minimum iq, i = iqNum - 1 -> maximum iq
-      IQSort(i) := compareMatrix.map(x => PopCount(x) === (iqNum - 1 - i).U)
+      IQSortWire(i) := compareMatrix.map(x => PopCount(x) === (iqNum - 1 - i).U)
+      IQSortValidCnt(i) := Mux1H(IQSortWire(i), exuidx.map(x => issueQueueCountAddEnq(x)))
+      IQSortValidCntAddEnq(i) := Mux1H(IQSort(i), exuidx.map(x => needAppendIQValidNumVec(x)))
     }
+    // update IQSort
+    val IQSortUpdate = Wire(Vec(iqNum, Vec(iqNum, Bool()))).suggestName(s"IQSortUpdate_$suffix}")
+    val updateInterval = 3
+    val segmentNum = (iqNum - 1) / updateInterval + 1
+    for (segIdx <- 0 until segmentNum) {
+      val realNum = Seq(iqNum - segIdx * updateInterval, updateInterval).min
+      val compareMatrixNew = Wire(Vec(realNum, Vec(realNum, Bool())))
+      val startNum = segIdx * updateInterval
+      val endNum   = startNum + realNum
+      for (i <- 0 until realNum) {
+        for (j <- 0 until realNum) {
+          if (i == j) compareMatrixNew(i)(j) := false.B
+          else if (i < j) compareMatrixNew(i)(j) := IQSortValidCnt(startNum+i) + IQSortValidCntAddEnq(startNum+i) <
+                                                 IQSortValidCnt(startNum+j) + IQSortValidCntAddEnq(startNum+j)
+          else compareMatrixNew(i)(j) := !compareMatrixNew(j)(i)
+        }
+      }
+      val newIQSort = Wire(Vec(realNum, Vec(realNum, Bool())))
+      for (i <- 0 until realNum) {
+        // i = 0 minimum iq, i = realNum - 1 -> maximum iq
+        newIQSort(i) := compareMatrixNew.map(x => PopCount(x) === (realNum - 1 - i).U)
+        IQSortUpdate(startNum + i) := Mux1H(newIQSort(i), IQSort.drop(startNum).take(realNum))
+      }
+    }
+
     val minIQSel = Wire(Vec(renameWidth, Vec(issueQueueNum, Bool()))).suggestName(s"minIQSel_$suffix")
     for (i <- 0 until renameWidth){
-      val minIQSel_ith = IQSort(i % iqNum)
+      val minIQSel_ith = (if (enableDispatchIQBalanceOpt) IQSortUpdate(i % iqNum) else IQSort(i % iqNum))
       for (j <- 0 until issueQueueNum){
         minIQSel(i)(j) := false.B
         if (iqidx.contains(j)){
@@ -448,12 +492,18 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
       dontTouch(compareMatrix)
       dontTouch(IQSort)
       dontTouch(minIQSel)
+      dontTouch(issueQueueCount)
+      dontTouch(needAppendIQValidNumVec)
     }
-  }
-  }
+  }}
   val fuConfigSeq = needMultiExu.map(_._1)
   val fuTypeOH = Wire(Vec(renameWidth, Vec(needMultiExu.size, Bool())))
   fuTypeOH.zip(renameIn).map{ case(oh, in) => {
+    oh := fuConfigSeq.map(x => x.map(xx => in.bits.fuType(xx.fuType.id)).reduce(_ || _) && in.valid)
+  }
+  }
+  val fuTypeOHFromRename = Wire(Vec(renameWidth, Vec(needMultiExu.size, Bool())))
+  fuTypeOHFromRename.zip(fromRename).map{ case(oh, in) => {
     oh := fuConfigSeq.map(x => x.map(xx => in.bits.fuType(xx.fuType.id)).reduce(_ || _) && in.valid)
   }
   }
@@ -470,9 +520,24 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
       }
     }
   }}
-  val uopSelIQ = Reg(Vec(renameWidth, Vec(issueQueueNum, Bool())))
+  val popFuTypeOHFromRename = Wire(Vec(renameWidth, Vec(needMultiExu.size, UInt((renameWidth-1).U.getWidth.W))))
+  popFuTypeOHFromRename.zipWithIndex.map{ case (pop, idx) => {
+    if (idx == 0){
+      pop := 0.U.asTypeOf(pop)
+    }
+    else {
+      pop.zipWithIndex.map{ case (p, i) => {
+        p := PopCount(fuTypeOHFromRename.take(idx).map(x => x(i)))
+        }
+      }
+    }
+  }}
   val fuTypeOHSingle = Wire(Vec(renameWidth, Vec(needSingleIQ.size, Bool())))
   fuTypeOHSingle.zip(renameIn).map{ case (oh, in) => {
+    oh := needSingleIQ.map(_._1).map(x => x.map(xx => in.valid && in.bits.fuType(xx.fuType.id)).reduce(_ || _))
+  }}
+  val fuTypeOHSingleFromRename = Wire(Vec(renameWidth, Vec(needSingleIQ.size, Bool())))
+  fuTypeOHSingleFromRename.zip(fromRename).map{ case (oh, in) => {
     oh := needSingleIQ.map(_._1).map(x => x.map(xx => in.valid && in.bits.fuType(xx.fuType.id)).reduce(_ || _))
   }}
   val uopSelIQSingle = Wire(Vec(needSingleIQ.size, Vec(issueQueueNum, Bool())))
@@ -483,6 +548,13 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
                 Mux(fuTypeOH(i).asUInt.orR,
                   Mux1H(fuTypeOH(i), minIQSelAll)(Mux1H(fuTypeOH(i), popFuTypeOH(i))),
                   Mux1H(fuTypeOHSingle(i), uopSelIQSingle)),
+                0.U.asTypeOf(u)
+              )
+    }.elsewhen(io.fromRename(i).valid && !io.fromRename(i).ready && enableDispatchIQBalanceOpt.B) {
+      u := Mux(fromRename(i).valid,
+                Mux(fuTypeOHFromRename(i).asUInt.orR,
+                  Mux1H(fuTypeOHFromRename(i), minIQSelAll)(Mux1H(fuTypeOHFromRename(i), popFuTypeOHFromRename(i))),
+                  Mux1H(fuTypeOHSingleFromRename(i), uopSelIQSingle)),
                 0.U.asTypeOf(u)
               )
     }.elsewhen(io.fromRename(i).fire){
@@ -907,24 +979,8 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
   XSPerfAccumulate("stall_cycle_allowDispatch", dispatchBlock && allowDispatch.asUInt.orR)
   XSPerfAccumulate("stall_cycle_lsqFull", dispatchBlock && lsqCanAccept)
 
-  val notIssue = !io.debugTopDown.fromRob.robHeadLsIssue
-  val tlbReplay = io.debugTopDown.fromCore.fromMem.robHeadTlbReplay
-  val tlbMiss = io.debugTopDown.fromCore.fromMem.robHeadTlbMiss
-  val vioReplay = io.debugTopDown.fromCore.fromMem.robHeadLoadVio
-  val mshrReplay = io.debugTopDown.fromCore.fromMem.robHeadLoadMSHR
-  val l1Miss = io.debugTopDown.fromCore.fromMem.robHeadMissInDCache
-  val l2Miss = io.debugTopDown.fromCore.l2MissMatch
-  val l3Miss = io.debugTopDown.fromCore.l3MissMatch
 
-  val ldReason = Mux(l3Miss, LoadMemStall.id.U,
-  Mux(l2Miss, LoadL3Stall.id.U,
-  Mux(l1Miss, LoadL2Stall.id.U,
-  Mux(notIssue, MemNotReadyStall.id.U,
-  Mux(tlbMiss, LoadTLBStall.id.U,
-  Mux(tlbReplay, LoadTLBStall.id.U,
-  Mux(mshrReplay, LoadMSHRReplayStall.id.U,
-  Mux(vioReplay, LoadVioReplayStall.id.U,
-  LoadL1Stall.id.U))))))))
+  val ldReason = io.debugLoadReason.getOrElse(0.U)
 
   val fusedVec = (0 until RenameWidth).map{ case i =>
     if (i == 0 || !backendParams.debugEn) false.B
@@ -962,7 +1018,7 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
   val issueQueueSizeVec = Wire(Vec(issueQueueNum, UInt(maxIQSize.U.getWidth.W)))
   issueQueueSizeVec := allIssueParams.map{ param =>
     // Now only when iq has two clear entry, instruction can enq
-    (param.numEntries - 2).asUInt
+    (param.numEntries - param.numEnq).asUInt
   }
 
   val fuTypes = fromRename.map(_.bits.fuType)
@@ -1047,6 +1103,7 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
   val dispatchStall = !(inReadyVec.reduce(_ || _))
   val dispatchStallReason = Wire(chiselTypeOf(io.stallReason.reason(0)))
 
+  val robHeadStall = io.debugRobHeadStall.getOrElse(false.B)
 
   val robHeadFutype = io.robHeadFuType
 
@@ -1055,14 +1112,20 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
   val roblsqStall = robStall ||  lsqStall
   val lqStall  = lsqEnqCtrl.io.lqStall.getOrElse(false.B)
   val sqStall  = lsqEnqCtrl.io.sqStall.getOrElse(false.B)
+  val robHeadStallReason = MuxCase(OtherNotReadyStall.id.U, Seq(
+    FuType.isAMO(robHeadFutype)          -> AtomicStall.id.U          ,
+    FuType.isStoreVstore(robHeadFutype)  -> StoreStall.id.U           ,
+    FuType.isLoadVload(robHeadFutype)    -> ldReason                  ,
+    FuType.isDivSqrt(robHeadFutype)      -> DivStall.id.U             ,
+    FuType.isInt(robHeadFutype)          -> IntNotReadyStall.id.U     ,
+    FuType.isFArith(robHeadFutype)       -> FPNotReadyStall.id.U      ,
+  ))
+
   val roblsqStallReason = MuxCase(BackendOtherCoreStall.id.U, Seq(
-    (FuType.isAMO(robHeadFutype) && io.robHeadNotReady)                      -> AtomicStall.id.U          ,
-    ((FuType.isStoreVstore(robHeadFutype) && io.robHeadNotReady) || sqStall) -> StoreStall.id.U           ,
-    ((FuType.isLoadVload(robHeadFutype) && io.robHeadNotReady) || lqStall)   -> ldReason                  ,
-    (FuType.isDivSqrt(robHeadFutype) && io.robHeadNotReady)                  -> DivStall.id.U             ,
-    (FuType.isInt(robHeadFutype) && io.robHeadNotReady)                      -> IntNotReadyStall.id.U     ,
-    (FuType.isFArith(robHeadFutype) && io.robHeadNotReady)                   -> FPNotReadyStall.id.U      ,
-    (robStall || lsqStall)                                                   -> RobStall.id.U             ,
+    robHeadStall                         -> robHeadStallReason        ,
+    robStall                             -> RobStall.id.U             ,
+    lqStall                              -> LqStall.id.U              ,
+    sqStall                              -> SqStall.id.U              ,
   ))
 
   /** BalanceDispatchStall or Bubble: IQ can enq, but fail to dispatch cause stall/bubble
@@ -1075,7 +1138,7 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
   val issueQueueStall = issueQueueStallVec(0)
   val issueQueueStallFutype = PriorityMux(issueQueueStallVec, fuTypes)
   val balanceDispatchStall = PriorityMux(issueQueueStallVec, fromRenameFutypeNotOverIQ)
-  val balanceDispatchStallReason = MuxCase(BackendOtherCoreStall.id.U, Seq(
+  val balanceDispatchStallReason = MuxCase(OtherBalanceDispatchPolicyStall.id.U, Seq(
     FuType.isAlu(issueQueueStallFutype)         -> BalanceDispatchPolicyStallAlu.id.U   ,
     FuType.isBJU(issueQueueStallFutype)         -> BalanceDispatchPolicyStallBrh.id.U   ,
     FuType.isInt(issueQueueStallFutype)         -> BalanceDispatchPolicyStallInt.id.U   ,
@@ -1085,9 +1148,10 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
     FuType.isStoreVstore(issueQueueStallFutype) -> BalanceDispatchPolicyStallStore.id.U ,
   ))
   val issueQueueStallReason = MuxCase(BackendOtherCoreStall.id.U, Seq(
-    fromRenameFutypeNotOverIQ(0)                -> balanceDispatchStallReason  ,
+    robHeadStall                                -> robHeadStallReason          ,
     fromRenameMapIQEnqHasIssuedNotFull(0)       -> IQEnqPolicyStallIssued.id.U ,
     fromRenameMapIQNotFull(0)                   -> IQEnqPolicyStall.id.U       ,
+    fromRenameFutypeNotOverIQ(0)                -> balanceDispatchStallReason  ,
     FuType.isAlu(issueQueueStallFutype)         -> IntIQFullStallAlu.id.U      ,
     FuType.isBJU(issueQueueStallFutype)         -> IntIQFullStallBrh.id.U      ,
     FuType.isInt(issueQueueStallFutype)         -> IntIQFullStallOther.id.U    ,
@@ -1101,8 +1165,9 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
   val dispatchlsqStall = dispatchlsqBubbleVec.reduce(_ && _)
   val dispatchlsqStallFutype = PriorityMux(dispatchlsqBubbleVec , fuTypes)
   val dispatchlsqStallReason = MuxCase(NoStall.id.U, Seq(
-    FuType.isLoadVload(dispatchlsqStallFutype)   -> LoadIQFullStall.id.U  ,
-    FuType.isStoreVstore(dispatchlsqStallFutype) -> StoreIQFullStall.id.U ,
+    robHeadStall                                 -> robHeadStallReason ,
+    FuType.isLoadVload(dispatchlsqStallFutype)   -> LqStall.id.U       ,
+    FuType.isStoreVstore(dispatchlsqStallFutype) -> SqStall.id.U       ,
   ))
 
   // block backward will not stall whole pipe in current cycle
@@ -1148,11 +1213,12 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
 
   val issueQueueBubble = issueQueueStallVec.reduce(_ || _)
 
-  val issueQueueBubbleReason = MuxCase(BackendOtherCoreStall.id.U, Seq(
-    balanceDispatchStall                        -> balanceDispatchStallReason  ,
-    dispatchBandWidthPolicyBubble               -> dispatchBandWidthPolicyBubbleReason ,
+  val issueQueueBubbleReason = MuxCase(OtherBalanceDispatchPolicyStall.id.U, Seq(
+    robHeadStall                                -> robHeadStallReason          ,
     issueQueueEnqPolicyStallIssued              -> IQEnqPolicyStallIssued.id.U ,
     issueQueueEnqPolicyStall                    -> IQEnqPolicyStall.id.U       ,
+    balanceDispatchStall                        -> balanceDispatchStallReason  ,
+    dispatchBandWidthPolicyBubble               -> dispatchBandWidthPolicyBubbleReason ,
     FuType.isAlu(issueQueueStallFutype)         -> IntIQFullStallAlu.id.U      ,
     FuType.isBJU(issueQueueStallFutype)         -> IntIQFullStallBrh.id.U      ,
     FuType.isInt(issueQueueStallFutype)         -> IntIQFullStallOther.id.U    ,
@@ -1162,12 +1228,13 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
     FuType.isStoreVstore(issueQueueStallFutype) -> StoreIQFullStall.id.U       ,
   ))
 
-  /** Dispatch lsq Bubble : lsq cannot enter */
+  /** Dispatch lsq Bubble : lsq cannot enter caculate by dispatch: allowdispatch*/
   val dispatchlsqBubble = dispatchlsqBubbleVec.reduce(_ || _)
   val dispatchlsqBubbleFutype = PriorityMux(dispatchlsqBubbleVec , fuTypes)
   val dispatchlsqBubbleReason = MuxCase(NoStall.id.U, Seq(
-    FuType.isLoadVload(dispatchlsqBubbleFutype)   -> LoadIQFullStall.id.U  ,
-    FuType.isStoreVstore(dispatchlsqBubbleFutype) -> StoreIQFullStall.id.U ,
+    robHeadStall                                  -> robHeadStallReason    ,
+    FuType.isLoadVload(dispatchlsqBubbleFutype)   -> LqStall.id.U  ,
+    FuType.isStoreVstore(dispatchlsqBubbleFutype) -> SqStall.id.U ,
   ))
 
   /** Special Instruction bubble: wait forward or block backward */
@@ -1268,9 +1335,13 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents with 
 
   TopDownCounters.values.foreach(ctr => XSPerfAccumulate(ctr.toString(), PopCount(stallReason.map(_ === ctr.id.U)), XSPerfLevel.CRITICAL))
 
-  val robTrueCommit = io.debugTopDown.fromRob.robTrueCommit
-  TopDownCounters.values.foreach(ctr => XSPerfRolling("td_"+ctr.toString(), PopCount(stallReason.map(_ === ctr.id.U)),
+  val robTrueCommit = io.debugRobTrueCommit.getOrElse(0.U)
+  TopDownCounters.values.foreach(ctr => XSPerfRolling("td_inst_"+ctr.toString(), PopCount(stallReason.map(_ === ctr.id.U)),
                                                       robTrueCommit, 1000, clock, reset))
+
+  val topDownRollingGranularity = 1000
+  TopDownCounters.values.foreach(ctr => XSPerfRolling("td_cycle_"+ctr.toString(), PopCount(stallReason.map(_ === ctr.id.U)),
+                                                      topDownRollingGranularity, clock, reset))
 
   XSPerfHistogram("slots_fire", PopCount(thisActualOut), true.B, 0, RenameWidth+1, 1)
   // Explaination: when out(0) not fire, PopCount(valid) is not meaningfull

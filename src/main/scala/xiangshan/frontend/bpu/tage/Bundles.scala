@@ -88,19 +88,24 @@ class TableReadResp(implicit p: Parameters, info: TageTableInfo) extends TageBun
   val usefulCtrs: Vec[SaturateCounter] = Vec(NumWays, UsefulCounter())
 }
 
-class EntrySramWriteReq(implicit p: Parameters, info: TageTableInfo) extends WriteReqBundle
-    with HasTageParameters {
+class EntrySramWriteReq(implicit p: Parameters, info: TageTableInfo) extends WriteReqBundle with HasTageParameters {
   val setIdx:       UInt                    = UInt(SetIdxWidth.W)
   val entry:        TageEntry               = new TageEntry
-  val usefulCtr:    SaturateCounter         = UsefulCounter()
   override def tag: Option[UInt]            = Some(entry.tag)
   override def cnt: Option[SaturateCounter] = Some(entry.takenCtr)
+}
+
+class UsefulCtrSramWriteReq(implicit p: Parameters, info: TageTableInfo) extends TageBundle {
+  val setIdx:    UInt            = UInt(SetIdxWidth.W)
+  val usefulCtr: SaturateCounter = UsefulCounter()
 }
 
 class TableWriteReq(implicit p: Parameters, info: TageTableInfo) extends TageBundle {
   val setIdx:          UInt                 = UInt(SetIdxWidth.W)
   val bankMask:        UInt                 = UInt(NumBanks.W)
   val wayMask:         UInt                 = UInt(NumWays.W)
+  val writeEntryEn:    Vec[Bool]            = Vec(NumWays, Bool())
+  val writeUsefulEn:   Vec[Bool]            = Vec(NumWays, Bool())
   val actualTakenMask: Vec[Bool]            = Vec(NumWays, Bool())
   val entries:         Vec[TageEntry]       = Vec(NumWays, new TageEntry)
   val usefulCtrs:      Vec[SaturateCounter] = Vec(NumWays, UsefulCounter())
@@ -159,9 +164,10 @@ class TrainInfo(implicit p: Parameters) extends TageBundle {
   val altEntry:        TageEntry       = new TageEntry
   val altOldUsefulCtr: SaturateCounter = UsefulCounter()
 
-  val needAllocate:       Bool = Bool()
-  val needUpdateProvider: Bool = Bool()
-  val needUpdateAlt:      Bool = Bool()
+  val needAllocate:             Bool = Bool()
+  val needUpdateProviderCtr:    Bool = Bool()
+  val needUpdateProviderUseful: Bool = Bool()
+  val needUpdateAltCtr:         Bool = Bool()
 
   val incUseAltOnNa: Bool = Bool()
   val decUseAltOnNa: Bool = Bool()

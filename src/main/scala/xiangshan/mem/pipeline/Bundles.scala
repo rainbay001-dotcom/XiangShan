@@ -27,6 +27,7 @@ import xiangshan.backend.Bundles.DynInst
 import xiangshan.cache._
 import xiangshan.cache.mmu._
 import xiangshan.mem.LoadStage._
+import xiangshan.mem.StoreStage._
 
 sealed trait HasLoadPipeBundleParam {
   def hasPAddr: Boolean = false
@@ -209,3 +210,100 @@ class VectorLoadIn(implicit p: Parameters)
 
 class LoadStageIO(implicit p: Parameters, implicit val s: LoadStage)
   extends LoadPipeBundle(LoadStageIOParam())
+
+sealed trait HasStorePipeBundleParam {
+  def hasVector: Boolean = false
+  def hasStoreSet: Boolean = false
+  def hasUnalignHandling: Boolean = false
+  def hasAddrTrans: Boolean = false
+  def hasPAddrChecked: Boolean = false
+}
+
+case class DefaultStorePipeBundleParam() extends HasStorePipeBundleParam
+
+class StorePipeBundle(
+  param: HasStorePipeBundleParam = DefaultStorePipeBundleParam()
+)(
+  implicit p: Parameters
+) extends XSBundle
+  with HasStorePipeBundleParam
+  with HasVLSUParameters {
+  // Basic info
+  val entrance = StoreEntrance()
+  val accessType = StoreAccessType()
+  val uop = new DynInst
+  val vaddr = UInt(VAddrBits.W)
+  val fullva = UInt(XLEN.W)
+  val size = UInt(MemorySize.Size.width.W)
+  val mask = UInt((VLEN/8).W)
+  val isFirstIssue = Bool()
+
+  // StoreSet
+  val ssid = Option.when(param.hasStoreSet)(UInt(SSIDWidth.W))
+  val storeSetHit = Option.when(param.hasStoreSet)(Bool())
+  
+  // Unalign handling
+  val align = Option.when(param.hasUnalignHandling)(Bool())
+  val unalignHead = Option.when(param.hasUnalignHandling)(Bool())
+  val cross4KPage = Option.when(param.hasUnalignHandling)(Bool())
+
+  // MMU & exception handling
+  val tlbHit = Option.when(param.hasAddrTrans)(Bool())
+  val tlbException = Option.when(param.hasAddrTrans)(new TlbRespExcp)
+  val pbmt = Option.when(param.hasAddrTrans)(Pbmt())
+  val isForVSnonLeafPTE = Option.when(param.hasAddrTrans)(Bool())
+  val paddr = Option.when(param.hasAddrTrans)(UInt(PAddrBits.W))
+  val gpaddr = Option.when(param.hasAddrTrans)(UInt(XLEN.W))
+  val hasException = Option.when(param.hasAddrTrans)(Bool())
+  val needRSReplay = Option.when(param.hasAddrTrans)(Bool())
+
+  val nc = Option.when(param.hasPAddrChecked)(Bool())
+  val mmio = Option.when(param.hasPAddrChecked)(Bool())
+  val memBackTypeMM = Option.when(param.hasPAddrChecked)(Bool())
+
+  // Vector
+  val vecBaseVaddr = Option.when(param.hasVector)(UInt(VAddrBits.W))
+  val usSecondInv = Option.when(param.hasVector)(Bool())
+  val elemIdx = Option.when(param.hasVector)(UInt(elemIdxBits.W))
+  val mbIndex = Option.when(param.hasVector)(UInt(vlmBindexBits.W))
+  val vecTriggerMask = Option.when(param.hasVector)(UInt((VLEN/8).W))
+  val vecVaddrOffset = Option.when(param.hasVector)(UInt(VAddrBits.W))
+  
+  def DontCareUnalign(): Unit = {
+    align.get := DontCare
+    unalignHead.get := DontCare
+    cross4KPage.get := DontCare
+  }
+  def DontCareVectorFields(): Unit = {
+    vecBaseVaddr.get := 0.U
+    usSecondInv.get := false.B
+    elemIdx.get := 0.U
+    mbIndex.get := 0.U
+    vecTriggerMask.get := 0.U
+    vecVaddrOffset.get := 0.U
+  }
+  def DontCareStoreSet(): Unit = {
+    ssid.get := 0.U
+    storeSetHit.get := false.B
+  }
+}
+
+case class VectorStoreInParam(
+  override val hasVector: Boolean = true
+) extends HasStorePipeBundleParam
+
+case class StoreStageIOParam()(
+  implicit val s: StoreStage
+) extends HasStorePipeBundleParam with OnStoreStage {
+  override val hasVector: Boolean = true
+  override val hasUnalignHandling: Boolean = true
+  override val hasStoreSet: Boolean = true
+  override val hasAddrTrans: Boolean = afterS1
+  override val hasPAddrChecked: Boolean = afterS2
+}
+
+class StoreStageIO(implicit p: Parameters, implicit val s: StoreStage)
+  extends StorePipeBundle(StoreStageIOParam())
+
+class VectorStoreIn(implicit p: Parameters)
+  extends StorePipeBundle(VectorStoreInParam())

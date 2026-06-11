@@ -72,7 +72,7 @@ Some of the key directories are shown below.
 │           └── transforms # some useful firrtl transforms
 ├── scripts                # scripts for agile development
 ├── yunsuan                # yunsuan submodule of XiangShan
-├── huancun                # L2/L3 cache submodule of XiangShan
+├── XSCache                # cache subsystem of XiangShan
 ├── difftest               # difftest co-simulation framework
 └── ready-to-run           # pre-built simulation images
 ```
@@ -117,7 +117,7 @@ make idea
 Example:
 
 ```bash
-make emu CONFIG=TLMinimalConfig EMU_THREADS=2 -j10
+make emu CONFIG=MinimalConfig EMU_THREADS=2 -j10
 ./build/emu -b 0 -e 0 -i ./ready-to-run/coremark-2-iteration.bin --diff ./ready-to-run/riscv64-nemu-interpreter-so
 ```
 ### Run with xspdb

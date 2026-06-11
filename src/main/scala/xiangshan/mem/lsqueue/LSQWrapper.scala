@@ -22,7 +22,7 @@ import chisel3.util._
 import utils._
 import utility._
 import xiangshan._
-import xiangshan.backend.Bundles.{DynInst, ExuOutput, MemExuOutput, NewExuOutput, UopIdx, connectSamePort}
+import xiangshan.backend.Bundles.{DynInst, ExuOutput, MemExuOutput, MemToRob, UopIdx, connectSamePort}
 import xiangshan.backend._
 import xiangshan.backend.rob.{RobLsqIO, RobPtr}
 import xiangshan.backend.fu.FuType
@@ -80,7 +80,6 @@ class LsqWrapper(implicit p: Parameters) extends XSModule
       val ldin = Vec(LoadPipelineWidth, Flipped(Decoupled(new LqWriteBundle))) // from load_s3
     }
     val sta = new Bundle() {
-      val storeMaskIn = Vec(StorePipelineWidth, Flipped(Valid(new StoreMaskBundle))) // from store_s0, store mask, send to sq from rs
       val storeAddrIn = Vec(StorePipelineWidth, Flipped(Valid(new StoreAddrIO))) // from store_s1
       val storeAddrInRe = Vec(StorePipelineWidth, Input(new StoreAddrIO)) // from store_s2
       // ready indicate unaligned queue reject this unaligned request
@@ -100,10 +99,9 @@ class LsqWrapper(implicit p: Parameters) extends XSModule
     val mdpTrain        = ValidIO(new Redirect)
     val release = Flipped(Valid(new Release))
     val loadWakeup = Flipped(ValidIO(new DCacheLoadWakeup()))
-    val maControl     = Flipped(new StoreMaBufToSqControlIO)
     val uncacheOutstanding = Input(Bool())
     val uncache = new UncacheWordIO
-    val mmioStout = DecoupledIO(new NewExuOutput(staParams.head)) // writeback uncached store
+    val mmioStout = DecoupledIO(new MemToRob(staParams.head)) // writeback uncached store
     val sqEmpty = Output(Bool())
     val lq_rep_full = Output(Bool())
     val sqFull = Output(Bool())
@@ -116,9 +114,6 @@ class LsqWrapper(implicit p: Parameters) extends XSModule
     val sqCanAccept = Output(Bool())
     val lqDeqPtr = Output(new LqPtr)
     val sqDeqPtr = Output(new SqPtr)
-    val sqCommitPtr = Output(new SqPtr)
-    val sqCommitUopIdx = Output(UopIdx())
-    val sqCommitRobIdx = Output(new RobPtr)
     val issuePtrExt = Output(new SqPtr)
     val l2_hint = Input(Valid(new L2ToL1Hint()))
     val tlb_hint = Flipped(new TlbHintIO)
@@ -145,9 +140,6 @@ class LsqWrapper(implicit p: Parameters) extends XSModule
   storeQueue.io.wfi <> io.wfi
 
   if (backendParams.debugEn){ dontTouch(loadQueue.io.tlbReplayDelayCycleCtrl) }
-  // TODO: Don't use for now, will be remove in the feature
-  io.maControl := DontCare
-  io.maControl.toStoreMisalignBuffer.doDeq := true.B // always true, cross page unalign handled by store queue.
   // Todo: imm
   val tlbReplayDelayCycleCtrl = WireInit(VecInit(Seq(14.U(ReSelectLen.W), 0.U(ReSelectLen.W), 125.U(ReSelectLen.W), 0.U(ReSelectLen.W))))
   loadQueue.io.tlbReplayDelayCycleCtrl := tlbReplayDelayCycleCtrl
@@ -162,9 +154,6 @@ class LsqWrapper(implicit p: Parameters) extends XSModule
   storeQueue.io.enq.lqCanAccept := loadQueue.io.enq.canAccept
   io.lqDeqPtr := loadQueue.io.lqDeqPtr
   io.sqDeqPtr := storeQueue.io.sqDeqPtr
-  io.sqCommitRobIdx := storeQueue.io.sqDeqRobIdx
-  io.sqCommitUopIdx := storeQueue.io.sqDeqUopIdx
-  io.sqCommitPtr    := storeQueue.io.sqDeqPtr
   io.rarValidCount := loadQueue.io.rarValidCount
   for (i <- io.enq.req.indices) {
     loadQueue.io.enq.needAlloc(i)      := io.enq.needAlloc(i)(0)
@@ -192,7 +181,6 @@ class LsqWrapper(implicit p: Parameters) extends XSModule
   storeQueue.io.fromStoreUnit.storeAddrIn     <> io.sta.storeAddrIn // from store_s1
   storeQueue.io.fromStoreUnit.storeAddrInRe   <> io.sta.storeAddrInRe // from store_s2
   storeQueue.io.storeDataIn                   <> io.std.storeDataIn // from store_s0
-  storeQueue.io.fromStoreUnit.storeMaskIn     <> io.sta.storeMaskIn // from store_s0
   storeQueue.io.writeToSbuffer                <> io.sbuffer
   storeQueue.io.writeBack                     <> io.mmioStout
   storeQueue.io.fromRob.pendingPtr            := io.rob.pendingPtr
@@ -208,7 +196,6 @@ class LsqWrapper(implicit p: Parameters) extends XSModule
   storeQueue.io.toDCache.resp                 <> io.cmoOpResp
   io.flushSbuffer.valid                       := storeQueue.io.sbufferCtrl.req.flush
   storeQueue.io.sbufferCtrl.resp.empty        := io.flushSbuffer.empty
-//  storeQueue.io.maControl    <> io.maControl
   io.diffStore.foreach{ case sink =>
     storeQueue.io.diffStore.foreach(sink := _)
   }
@@ -406,8 +393,8 @@ class LsqEnqCtrl(implicit p: Parameters) extends XSModule
   // To solve the issue easily, we block enqueue when t3_update, which is RegNext(t2_update).
   io.enq.canAccept := RegNext(ldCanAccept && sqCanAccept && !t2_update)
   // for Topdown
-  io.lqStall.foreach(_ := !ldCanAccept || t2_update)
-  io.sqStall.foreach(_ := !sqCanAccept || t2_update)
+  io.lqStall.foreach(_ := RegNext(!ldCanAccept || t2_update))
+  io.sqStall.foreach(_ := RegNext(!sqCanAccept || t2_update))
 
   val lqOffset = Wire(Vec(io.enq.resp.length, UInt(lqPtr.value.getWidth.W)))
   val sqOffset = Wire(Vec(io.enq.resp.length, UInt(sqPtr.value.getWidth.W)))

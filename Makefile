@@ -47,7 +47,7 @@ JAR = $(BUILD_DIR)/xsgen.jar
 SCALA_FILE = $(shell find ./src/main/scala -name '*.scala')
 TEST_FILE = $(shell find ./src/test/scala -name '*.scala')
 
-CONFIG ?= TLConfig
+CONFIG ?= DefaultConfig
 NUM_CORES ?= 1
 ISSUE ?= E.b
 CHISEL_TARGET ?= systemverilog
@@ -229,6 +229,10 @@ else
 TOPMAIN_ARGS += $(RELEASE_ARGS)
 endif
 
+ifeq ($(DUMP_CSR),1)
+TOPMAIN_ARGS += --dump-csr
+endif
+
 TIMELOG = $(BUILD_DIR)/time.log
 TIME_CMD = time -avp -o $(TIMELOG)
 
@@ -307,7 +311,7 @@ GIT_FORCE_FLAG := $(if $(GIT_FORCE_INIT),--force)
 init:
 	git submodule update --init $(GIT_FORCE_FLAG)
 	cd rocket-chip && git submodule update --init $(GIT_FORCE_FLAG) cde hardfloat
-	cd openLLC && git submodule update --init $(GIT_FORCE_FLAG) openNCB
+	cd XSCache && git submodule update --init $(GIT_FORCE_FLAG) OpenNCB
 
 # Initialize necessary submodules (force)
 #   This ensure that all submodules files are checked out to the correct commit. Good for CI.

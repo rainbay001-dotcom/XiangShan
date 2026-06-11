@@ -30,6 +30,7 @@ import xiangshan.mem._
 import utility._
 import xiangshan.backend.fu.vector.Bundles.{VType, Vstart}
 import xiangshan.backend.fu.wrapper.{CSRInput, CSRToDecode}
+import xiangshan.backend.rob.RobPtr
 import xiangshan.backend.issue.EntryBundles.RespType
 import xiangshan.backend.issue._
 
@@ -728,7 +729,6 @@ class Region(val params: SchdBlockParams)(implicit p: Parameters) extends XSModu
     io.wbDataPathToCtrlBlock.delayedOldestExuRedirect.get.valid := RegNext(oldestExuRedirect.valid)
     io.wbDataPathToCtrlBlock.delayedOldestExuRedirect.get.bits  := RegEnable(oldestExuRedirect.bits, oldestExuRedirect.valid)
   }
-
   io.IQValidNumVec := issueQueues.filter(_.param.StdCnt == 0).map(_.io.validCntDeqVec).flatten
   io.og0Cancel := dataPath.io.og0Cancel
   io.diffVl.foreach(_ := dataPath.io.diffVl.get)
@@ -775,6 +775,14 @@ class Region(val params: SchdBlockParams)(implicit p: Parameters) extends XSModu
   staIdx.zipWithIndex.foreach { case (sta, i) =>
     issueQueueEnqHasIssuedVec(sta) := Mux(staValidNum(i) > stdValidNum(i), staEnqHasIssuedVec(i), stdEnqHasIssuedVec(i))
   }
+
+  val issueQueueDeqVec = issueQueues.flatMap(_.io.deqDelay)
+  io.debugIQDeqRobIdxVec.foreach(_.zip(issueQueueDeqVec).foreach{ case(sink, source) =>
+    sink.valid := source.valid
+    sink.bits := source.bits.robIdx
+  })
+
+
 
   if (params.isIntSchd) {
     val iqNum = issueQueues.size
@@ -932,7 +940,9 @@ class RegionIO(val params: SchdBlockParams)(implicit p: Parameters) extends XSBu
 
   // TopDown
   val uopTopDown = new UopTopDown
+  val iqDeqSum = params.issueBlockParams.map(_.numDeq).sum
   val debugIQValidNumVec = Option.when(backendParams.debugEn)(Vec(IQNum, Output(UInt(maxIQSize.U.getWidth.W))))
   val debugIQEnqHasIssuedVec = Option.when(backendParams.debugEn)(Vec(IQNum, Output(Bool())))
+  val debugIQDeqRobIdxVec = Option.when(backendParams.debugEn)(Vec(iqDeqSum, ValidIO(new RobPtr())))
 }
 

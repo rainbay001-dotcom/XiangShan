@@ -21,7 +21,6 @@ import difftest.common.DifftestMem
 import org.chipsalliance.cde.config.Parameters
 import top.ArgParser
 import utility._
-import xiangshan.ExceptionNO.hardwareError
 import xiangshan._
 import xiangshan.backend.Bundles.{MemExuOutput, UopIdx, connectSamePort}
 import xiangshan.backend.datapath.NewPipelineConnect
@@ -33,8 +32,8 @@ import xiangshan.mem.Bundles.LqWriteBundle
 class MemExceptionInfo(implicit p: Parameters) extends XSBundle {
   val robIdx            = new RobPtr
   val uopIdx            = UopIdx()
-  val exceptionVec      = ExceptionVec()
-  def hasException      = exceptionVec.asUInt.orR
+  val exceptionVec      = ExceptSparseVec() // TODO: optimize valid indices
+  def hasException      = exceptionVec.orR
 
   val vaddr             = UInt(XLEN.W)
   val vaNeedExt         = Bool()

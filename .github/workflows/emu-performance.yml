@@ -13,7 +13,6 @@ env:
   NEMU_HOME: /nfs/home/share/ci-workloads/NEMU
   AM_HOME: /nfs/home/share/ci-workloads/nexus-am
   PERF_HOME: /nfs/home/ci-runner/emu-performance/${{ github.run_number }}
-  WAVE_HOME: /nfs/home/ci-runner/emu-performance/${{ github.run_number }}/wave
   CKPT_HOME: /nfs/home/share/checkpoints_profiles/spec06_gcc15_rv64gcb_base_260122/checkpoint-0-0-0
 
 jobs:
@@ -53,7 +52,7 @@ jobs:
           submodules: true
       - name: Init
         run: |
-          mkdir -p ${PERF_HOME} ${WAVE_HOME}
+          mkdir -p ${PERF_HOME}
           make init-force
           python3 ${GITHUB_WORKSPACE}/scripts/xiangshan.py --clean
       - name: Build EMU
@@ -88,7 +87,8 @@ jobs:
     strategy:
       matrix:
         name:
-          - hmmer-Vector
+          # Vector-related workloads are temporarily disabled in CI due to the ongoing vector refactor.
+          # - hmmer-Vector
           - mcf
           - xalancbmk
           - gcc
@@ -99,11 +99,11 @@ jobs:
           - wrf
           - astar
         with-restore-bin: [true]
-        exclude:
-          - name: hmmer-Vector
-        include:
-          - name: hmmer-Vector
-            with-restore-bin: false
+        # exclude:
+        #   - name: hmmer-Vector
+        # include:
+        #   - name: hmmer-Vector
+        #     with-restore-bin: false
       fail-fast: false
       max-parallel: 4
     steps:
@@ -120,22 +120,31 @@ jobs:
           echo "Getting EMU binary from ${PERF_HOME}/emu"
           cp -L ${PERF_HOME}/emu ${GITHUB_WORKSPACE}/build/emu
       - name: Run Legacy CI Test - ${{ matrix.name }}
+        id: run
         shell: bash
         run: |
+          # TODO: remove --disable-fork to enable lightSSS when gsim supports it
           python3 ${GITHUB_WORKSPACE}/scripts/xiangshan.py \
-            --wave-dump ${WAVE_HOME} \
+            --wave-dump ${PERF_HOME} \
             --numa --threads 1 \
             --max-instr 5000000 \
+            --disable-fork \
             --ci ${{ matrix.name }} \
             ${{ matrix.with-restore-bin && '--gcpt-restore-bin /nfs/home/share/ci-workloads/fix-gcpt/gcpt.bin' || '' }} \
             2> stderr.log | tee stdout.log
-          cat stderr.log | sort | tee stderr-sorted.log
           grep -oP 'IPC = \K\d+\.\d+' stdout.log > "${PERF_HOME}/ipc-legacy-${{ matrix.name }}"
           echo "IPC: $(cat "${PERF_HOME}/ipc-legacy-${{ matrix.name }}")"
       - name: Archive log
-        if: always()
+        if: ${{ always() && steps.run.outcome != 'skipped' }}
         run: |
-          tar -czvf "${PERF_HOME}/legacy_${{ matrix.name }}.tar.gz" stdout.log stderr-sorted.log
+          # if run step failed, do not sort
+          if [[ "${{ steps.run.outcome }}" == "failure" ]]; then
+            cat stderr.log
+          else
+            mv stderr.log stderr.log.raw
+            cat stderr.log.raw | sort | tee stderr.log
+          fi
+          tar -czvf "${PERF_HOME}/legacy_${{ matrix.name }}.tar.gz" stdout.log stderr.log
 
   run:
     name: EMU - Performance - Run
@@ -222,23 +231,32 @@ jobs:
           echo "Getting EMU binary from ${PERF_HOME}/emu"
           cp -L ${PERF_HOME}/emu ${GITHUB_WORKSPACE}/build/emu
       - name: Run SPEC06 Test - ${{ matrix.name }}
+        id: run
         shell: bash
         run: |
           export CKPT=$(find "${CKPT_HOME}/${{ matrix.name }}/${{ matrix.ckpt }}" -type f \( -name "*.gz" -o -name "*.zstd" \) | head -n 1)
           echo "Running checkpoint: ${CKPT}"
+          # TODO: remove --disable-fork to enable lightSSS when gsim supports it
           python3 ${GITHUB_WORKSPACE}/scripts/xiangshan.py \
-            --wave-dump ${WAVE_HOME} \
+            --wave-dump ${PERF_HOME} \
             --numa --threads 1 \
             --max-instr 5000000 \
+            --disable-fork \
             ${CKPT} \
             2> stderr.log | tee stdout.log
-          cat stderr.log | sort | tee stderr-sorted.log
           grep -oP 'IPC = \K\d+\.\d+' stdout.log > "${PERF_HOME}/ipc-${{ matrix.name }}_${{ matrix.ckpt }}"
           echo "IPC: $(cat "${PERF_HOME}/ipc-${{ matrix.name }}_${{ matrix.ckpt }}")"
       - name: Archive log
-        if: always()
+        if: ${{ always() && steps.run.outcome != 'skipped' }}
         run: |
-          tar -czvf "${PERF_HOME}/${{ matrix.name }}_${{ matrix.ckpt }}.tar.gz" stdout.log stderr-sorted.log
+          # if run step failed, do not sort
+          if [[ "${{ steps.run.outcome }}" == "failure" ]]; then
+            cat stderr.log
+          else
+            mv stderr.log stderr.log.raw
+            cat stderr.log.raw | sort | tee stderr.log
+          fi
+          tar -czvf "${PERF_HOME}/${{ matrix.name }}_${{ matrix.ckpt }}.tar.gz" stdout.log stderr.log
 
   upload:
     name: EMU - Performance - Upload

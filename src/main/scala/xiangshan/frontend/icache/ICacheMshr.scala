@@ -17,14 +17,14 @@ package xiangshan.frontend.icache
 
 import chisel3._
 import chisel3.util._
-import coupledL2.MemBackTypeMM
 import freechips.rocketchip.tilelink.TLEdgeOut
-import huancun.AliasKey
 import org.chipsalliance.cde.config.Parameters
 import utility.MemReqSource
 import utility.ReqSourceKey
 import utility.XSPerfHistogram
 import xiangshan.WfiReqBundle
+import xscache.common.AliasKey
+import xscache.coupledL2.MemBackTypeMM
 
 class ICacheMshr(edge: TLEdgeOut, isFetch: Boolean, ID: Int)(implicit p: Parameters) extends ICacheModule {
   class ICacheMshrIO(edge: TLEdgeOut)(implicit p: Parameters) extends ICacheBundle {

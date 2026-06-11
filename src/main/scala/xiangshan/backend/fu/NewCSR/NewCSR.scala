@@ -10,6 +10,7 @@ import utils.OptionWrapper
 import xiangshan.backend.fu.NewCSR.CSRBundles.{CSRCustomState, PrivState, RobCommitCSR}
 import xiangshan.backend.fu.NewCSR.CSRDefines._
 import xiangshan.backend.fu.NewCSR.CSREnumTypeImplicitCast._
+import xiangshan.backend.fu.NewCSR.CSRFunc._
 import xiangshan.backend.fu.NewCSR.CSREvents.{CSREvents, DretEventSinkBundle, EventUpdatePrivStateOutput, MNretEventSinkBundle, MretEventSinkBundle, SretEventSinkBundle, SretEventSDTSinkBundle,  TargetPCBundle, TrapEntryDEventSinkBundle, TrapEntryEventInput, TrapEntryHSEventSinkBundle, TrapEntryMEventSinkBundle, TrapEntryMNEventSinkBundle, TrapEntryVSEventSinkBundle}
 import xiangshan.backend.fu.fpu.Bundles.Frm
 import xiangshan.backend.fu.vector.Bundles.{Vl, Vstart, Vxrm, Vxsat}
@@ -18,7 +19,6 @@ import xiangshan.backend.rob.RobPtr
 import xiangshan._
 import xiangshan.backend.fu.PerfCounterIO
 import xiangshan.backend.fu.util.CSRConst
-import xiangshan.ExceptionNO._
 import xiangshan.backend.trace._
 import xiangshan.backend.decode.isa.CSRs
 
@@ -32,6 +32,8 @@ object CSRConfig {
   final val HIIDWidth = 12 // support Hvictl[27:16](IID)
 
   final val VMIDLEN = 14 // the length of VMID of XS implementation
+
+  final val SDIDLEN = 6
 
   final val VMIDMAX = 14 // the max value of VMIDLEN defined by spec
 
@@ -66,8 +68,11 @@ object CSRConfig {
   final val EXT_DBLTRP = true
 
   final val PPNLength = 44
+  final val PPNLengthMpt = 44
   // TODO: as current test not support clean mdt , we set mstatus->mdt = 0 to allow exception in m-mode
   final val mdtInit = 0
+
+  final val csrindSelectWidth = 12
 
 }
 
@@ -111,8 +116,10 @@ class NewCSR(implicit val p: Parameters) extends Module
   with CSRCustom
   with CSRPMP
   with CSRPMA
+  with CSRDocDump
   with HasCriticalErrors
   with IpIeAliasConnect
+  with DebugMMIO
 {
 
   import CSRConfig._
@@ -197,10 +204,12 @@ class NewCSR(implicit val p: Parameters) extends Module
       val satpASIDChanged = Bool()
       val vsatpASIDChanged = Bool()
       val hgatpVMIDChanged = Bool()
+      val mmptSDIDChanged = Bool()
       val satp = new SatpBundle
       val vsatp = new SatpBundle
       val hgatp = new HgatpBundle
       val mbmc = new MbmcBundle
+      val mmpt = Option.when(HasMptCheck) (new MmptBundle)
       val mxr = Bool()
       val sum = Bool()
       val vmxr = Bool()
@@ -286,7 +295,9 @@ class NewCSR(implicit val p: Parameters) extends Module
   // error will result in an immediate re-entry into Debug Mode due to the critical error.
   // Ensure that dpc remains unchanged when criticalErrorState causes a re-entry into dmode,
   // since the PC fetched from pcmem for updating dpc is random in this case.
-  val holdDpc = RegEnable(criticalErrorState && dcsr.regOut.CETRIG, false.B, dretEvent.valid)
+  // This re-entry into Debug Mode will preempts the normal dret redirect.
+  val ceReEntryDmode = criticalErrorState && dcsr.regOut.CETRIG
+  val holdDpc = RegEnable(ceReEntryDmode, false.B, dretEvent.valid)
 
   private val privState = Wire(new PrivState)
   privState.PRVM := PRVM
@@ -463,6 +474,30 @@ class NewCSR(implicit val p: Parameters) extends Module
     }
   }
 
+  sireg.smcdelegSelect := siselect.regOut.ALL.asUInt
+  sireg2.smcdelegSelect := siselect.regOut.ALL.asUInt
+
+  (Seq(mcycle, minstret) ++ mhpmcounters).zipWithIndex.foreach { case (mod, i) =>
+    mod match {
+      case m: HasSiregCounterBundle =>
+        sireg.fromMcounter(i) := m.toSireg
+        m.fromSireg <> sireg.toMcounter(i)
+      case _ =>
+    }
+  }
+
+  (Seq(mcyclecfg, minstretcfg) ++ mhpmevents).zipWithIndex.foreach { case (mod, i) =>
+    mod match {
+      case m: HasSiregCfgBundle =>
+        sireg2.fromMcfg(i) := m.toSireg2
+        m.fromSireg2 <> sireg2.toMcfg(i)
+      case _ =>
+    }
+  }
+
+  mcountinhibit.fromScntinhibit := scountinhibit.toMcntinhibit
+  scountinhibit.fromMcntinhibit := mcountinhibit.toScntinhibit
+
   private val writeFpLegal  = permitMod.io.out.hasLegalWriteFcsr
   private val writeVecLegal = permitMod.io.out.hasLegalWriteVcsr
 
@@ -587,6 +622,11 @@ class NewCSR(implicit val p: Parameters) extends Module
     mod match {
       case m: HasMachineCounterControlBundle =>
         m.mcountinhibit := mcountinhibit.regOut
+      case _ =>
+    }
+    mod match {
+      case m: HasMcounterenBundle =>
+        m.mcounteren := mcounteren.regOut
       case _ =>
     }
     mod match {
@@ -789,11 +829,6 @@ class NewCSR(implicit val p: Parameters) extends Module
     }
   }
 
-  csrMods.foreach { mod =>
-    println(s"${mod.modName}: ")
-    println(mod.dumpFields)
-  }
-
   trapEntryMNEvent.valid  := ((hasTrap && nmi) || dbltrpToMN) && !entryDebugMode && !debugMode && mnstatus.regOut.NMIE
   trapEntryMEvent .valid  := hasTrap && entryPrivState.isModeM && !dbltrpToMN && !entryDebugMode && !debugMode && !nmi && mnstatus.regOut.NMIE
   trapEntryHSEvent.valid  := hasTrap && entryPrivState.isModeHS && !entryDebugMode && !debugMode && mnstatus.regOut.NMIE
@@ -837,6 +872,7 @@ class NewCSR(implicit val p: Parameters) extends Module
         } else {
           in.mbmc := DontCare
         }
+        in.mmpt.foreach(_ := mmpt.get.regOut)
 
         in.memExceptionVAddr := io.fromMem.excpVA
         in.memExceptionGPAddr := io.fromMem.excpGPA
@@ -933,7 +969,8 @@ class NewCSR(implicit val p: Parameters) extends Module
   // perf
   val addrInPerfCnt = (wenLegal || ren) && (
     (addr >= CSRs.mcycle.U) && (addr <= CSRs.mhpmcounter31.U) ||
-    (addr >= CSRs.cycle.U) && (addr <= CSRs.hpmcounter31.U)
+    (addr >= CSRs.cycle.U) && (addr <= CSRs.hpmcounter31.U) ||
+    (addr === CSRs.sireg.U) && (Iselect.isInSmcdeleg(siselect.rdata))
   ) ||
   ren && (
     (addr === CSRs.vstopi.U) || (addr === CSRs.vstopei.U) ||
@@ -945,6 +982,8 @@ class NewCSR(implicit val p: Parameters) extends Module
   // flush
   if (HasBitmapCheck) {
     resetSatp := Cat(Seq(satp, vsatp, hgatp, mbmc.get).map(_.addr.U === addr)).orR && wenLegalReg // write to satp will cause the pipeline be flushed
+  } else if (HasMptCheck) {
+     resetSatp := Cat(Seq(satp, vsatp, hgatp, mmpt.get).map(_.addr.U === addr)).orR && wenLegalReg
   } else {
     resetSatp := Cat(Seq(satp, vsatp, hgatp).map(_.addr.U === addr)).orR && wenLegalReg // write to satp will cause the pipeline be flushed
   }
@@ -985,9 +1024,12 @@ class NewCSR(implicit val p: Parameters) extends Module
   val frmChange = fcsr.wAliasFfm.wen && (!frmIsReserved && frmWdataReserved || frmIsReserved && !frmWdataReserved) ||
     fcsr.w.wen && (!frmIsReserved && fcsrWdataReserved || frmIsReserved && !fcsrWdataReserved)
 
+  // flush pipe when write xcontext.
+  val writeContext = Cat(Seq(mcontext, hcontext, scontext).map(_.addr.U === addr)).orR && wenLegalReg
+
   val flushPipe = resetSatp ||
     triggerFrontendChange || floatStatusOnOff || vectorStatusOnOff ||
-    vstartChange || frmChange
+    vstartChange || frmChange || writeContext
 
   /**
    * Look up id in vsMapS and sMapVS.
@@ -1149,13 +1191,18 @@ class NewCSR(implicit val p: Parameters) extends Module
 
   private val xretTargetUpdate = mnretEvent.out.targetPc.valid || mretEvent.out.targetPc.valid || sretEvent.out.targetPc.valid || dretEvent.out.targetPc.valid
   io.xretTargetPc.valid := xretTargetUpdate
+  private val targetCeReEntryDmode = WireInit(0.U.asTypeOf(trapEntryDEvent.out.targetPc.bits))
+  targetCeReEntryDmode.pc := DebugEntry.U
+
   io.xretTargetPc.bits := DataHoldBypass(
-    Mux1H(Seq(
-      mnretEvent.out.targetPc.valid -> mnretEvent.out.targetPc.bits,
-      mretEvent.out.targetPc.valid  -> mretEvent.out.targetPc.bits,
-      sretEvent.out.targetPc.valid  -> sretEvent.out.targetPc.bits,
-      dretEvent.out.targetPc.valid  -> dretEvent.out.targetPc.bits,
-    )),
+    Mux(ceReEntryDmode,
+      targetCeReEntryDmode,
+      Mux1H(Seq(
+        mnretEvent.out.targetPc.valid -> mnretEvent.out.targetPc.bits,
+        mretEvent.out.targetPc.valid  -> mretEvent.out.targetPc.bits,
+        sretEvent.out.targetPc.valid  -> sretEvent.out.targetPc.bits,
+        dretEvent.out.targetPc.valid  -> dretEvent.out.targetPc.bits,
+      ))),
     xretTargetUpdate
   )
 
@@ -1168,10 +1215,16 @@ class NewCSR(implicit val p: Parameters) extends Module
   val triggerCanWrite = dmodeInSelectedTrigger && debugMode || !dmodeInSelectedTrigger
   val tdata1Update  = tdata1.w.wen && triggerCanWrite
   val tdata2Update  = tdata2.w.wen && triggerCanWrite
+  val tdata3Update  = tdata3.w.wen && triggerCanWrite
   val tdata1Vec = tdata1RegVec.map{ mod => {
     val tdata1Wire = Wire(new Tdata1Bundle)
     tdata1Wire := mod.rdata
     tdata1Wire
+  }}
+  val tdata3Vec = tdata3RegVec.map{ mod => {
+    val tdata3Wire = Wire(new Tdata3Bundle)
+    tdata3Wire := mod.rdata
+    tdata3Wire
   }}
 
   val triggerCanRaiseBpExp = !(privState.isModeM && !mstatus.regOut.MIE ||
@@ -1191,10 +1244,17 @@ class NewCSR(implicit val p: Parameters) extends Module
   debugMod.io.in.dcsr                      := dcsr.regOut
   debugMod.io.in.tselect                   := tselect.regOut
   debugMod.io.in.tdata1Vec                 := tdata1Vec
+  debugMod.io.in.tdata3Vec                 := tdata3Vec
   debugMod.io.in.tdata1Selected            := tdata1.rdata
   debugMod.io.in.tdata2Selected            := tdata2.rdata
+  debugMod.io.in.scontext                  := scontext.regOut.ALL.asUInt
+  debugMod.io.in.mhcontext                 := mcontext.regOut.HCONTEXT.asUInt
+  debugMod.io.in.satpAsid                  := satp.regOut.ASID.asUInt
+  debugMod.io.in.vsatpAsid                 := vsatp.regOut.ASID.asUInt
+  debugMod.io.in.hgatpVmid                 := hgatp.regOut.VMID.asUInt
   debugMod.io.in.tdata1Update              := tdata1Update
   debugMod.io.in.tdata2Update              := tdata2Update
+  debugMod.io.in.tdata3Update              := tdata3Update
   debugMod.io.in.tdata1Wdata               := wdata
   debugMod.io.in.triggerCanRaiseBpExp      := triggerCanRaiseBpExp
 
@@ -1233,11 +1293,13 @@ class NewCSR(implicit val p: Parameters) extends Module
     }
   }
 
-  tdata1RegVec.zip(tdata2RegVec).zipWithIndex.map { case ((mod1, mod2), idx) => {
+  tdata1RegVec.zip(tdata2RegVec).zip(tdata3RegVec).zipWithIndex.map { case (((mod1, mod2), mod3), idx) => {
     mod1.w.wen    := tdata1Update && (tselect.rdata === idx.U)
     mod1.w.wdata  := wdata
     mod2.w.wen    := tdata2Update && (tselect.rdata === idx.U)
     mod2.w.wdata  := wdata
+    mod3.w.wen    := tdata3Update && (tselect.rdata === idx.U)
+    mod3.w.wdata  := wdata
   }}
 
   triggerFrontendChange := debugMod.io.out.triggerFrontendChange
@@ -1454,6 +1516,7 @@ class NewCSR(implicit val p: Parameters) extends Module
   io.tlb.satpASIDChanged  := GatedValidRegNext(satp.w.wen  && satp .regOut.ASID =/=  satp.w.wdataFields.ASID)
   io.tlb.vsatpASIDChanged := GatedValidRegNext(vsatp.w.wen && vsatp.regOut.ASID =/= vsatp.w.wdataFields.ASID)
   io.tlb.hgatpVMIDChanged := GatedValidRegNext(hgatp.w.wen && hgatp.regOut.VMID =/= hgatp.w.wdataFields.VMID)
+  io.tlb.mmptSDIDChanged := (if (HasMptCheck) GatedValidRegNext(mmpt.get.w.wen && mmpt.get.regOut.SDID =/= mmpt.get.w.wdataFields.SDID) else DontCare)
   io.tlb.satp := satp.rdata
   io.tlb.vsatp := vsatp.rdata
   io.tlb.hgatp := hgatp.rdata
@@ -1462,6 +1525,8 @@ class NewCSR(implicit val p: Parameters) extends Module
   } else {
     io.tlb.mbmc := DontCare
   }
+  io.tlb.mmpt.foreach(_ := mmpt.get.rdata)
+
   io.tlb.mxr  :=  mstatus.regOut.MXR.asBool
   io.tlb.sum  :=  mstatus.regOut.SUM.asBool
   io.tlb.vmxr := vsstatus.regOut.MXR.asBool
@@ -1487,6 +1552,8 @@ class NewCSR(implicit val p: Parameters) extends Module
   io.tlb.pmm.henvcfg := RegNext(henvcfg.regOut.PMM.asUInt)
   io.tlb.pmm.hstatus := RegNext(hstatus.regOut.HUPMM.asUInt)
   io.tlb.pmm.senvcfg := RegNext(senvcfg.regOut.PMM.asUInt)
+
+  io.toDecode.illegalInst.mfence.foreach(_ := !isModeM)
 
   io.toDecode.illegalInst.sfenceVMA  := isModeHS && mstatus.regOut.TVM  || isModeHU
   io.toDecode.virtualInst.sfenceVMA  := isModeVS && hstatus.regOut.VTVM || isModeVU
@@ -1536,6 +1603,18 @@ class NewCSR(implicit val p: Parameters) extends Module
   )
   criticalErrorStateInCSR := criticalErrors.map(criticalError => criticalError._2).reduce(_ || _).asBool
   generateCriticalErrors()
+
+  // ---------------------------------------------------------------------------
+  // CSR documentation export
+  // ---------------------------------------------------------------------------
+
+  if (env.DumpCSR) {
+    dumpCSRDoc()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Difftest
+  // ---------------------------------------------------------------------------
 
   // Always instantiate basic difftest modules.
   if (env.AlwaysBasicDiff || env.EnableDifftest) {

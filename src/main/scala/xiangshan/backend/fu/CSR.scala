@@ -24,10 +24,10 @@ import freechips.rocketchip.util._
 import utility.MaskedRegMap.WritableMask
 import utils._
 import utility._
-import xiangshan.ExceptionNO._
 import xiangshan._
 import xiangshan.backend.fu.util._
 import xiangshan.cache._
+import xiangshan.backend.BackendParams
 import xiangshan.backend.Bundles.{ExceptionInfo, TrapInstInfo}
 import xiangshan.backend.fu.NewCSR.CSREvents.TargetPCBundle
 import xiangshan.backend.fu.NewCSR.CSRNamedConstant.ContextStatus

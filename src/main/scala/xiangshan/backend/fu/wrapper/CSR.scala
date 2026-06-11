@@ -240,8 +240,8 @@ class CSR(cfg: FuConfig)(implicit p: Parameters) extends FuncUnit(cfg)
     csrMod.fromAIA.notice_pending := imsicsec.notice_pending
   }
 
-  private val exceptionVec = WireInit(0.U.asTypeOf(ExceptionVec())) // Todo:
-
+  private val exceptionVec = Wire(ExceptSparseVec(cfg.exceptionOut))
+  exceptionVec.zeroInit()
   exceptionVec(EX_BP    ) := DataHoldBypass(isEbreak, false.B, io.in.fire)
   exceptionVec(EX_MCALL ) := DataHoldBypass(isEcall && privState.isModeM, false.B, io.in.fire)
   exceptionVec(EX_HSCALL) := DataHoldBypass(isEcall && privState.isModeHS, false.B, io.in.fire)
@@ -273,7 +273,15 @@ class CSR(cfg: FuConfig)(implicit p: Parameters) extends FuncUnit(cfg)
   tlb.mbmc.CMODE    := csrMod.io.tlb.mbmc.CMODE.asUInt
   tlb.mbmc.BCLEAR   := csrMod.io.tlb.mbmc.BCLEAR.asUInt
   tlb.mbmc.BMA      := csrMod.io.tlb.mbmc.BMA.asUInt
-
+  if (HasMptCheck) {
+    tlb.mmpt.mode := csrMod.io.tlb.mmpt.get.MODE.asUInt
+    tlb.mmpt.sdid := csrMod.io.tlb.mmpt.get.SDID.asUInt
+    tlb.mmpt.optOutInNode := csrMod.io.tlb.mmpt.get.optOutInNode.asUInt
+    tlb.mmpt.ppn := csrMod.io.tlb.mmpt.get.PPN.asUInt
+    tlb.mmpt.changed := csrMod.io.tlb.mmptSDIDChanged
+  } else {
+    tlb.mmpt := DontCare
+  }
   // expose several csr bits for tlb
   tlb.priv.mxr := csrMod.io.tlb.mxr
   tlb.priv.sum := csrMod.io.tlb.sum
@@ -297,7 +305,11 @@ class CSR(cfg: FuConfig)(implicit p: Parameters) extends FuncUnit(cfg)
   io.outValidAhead3Cycle.get := csrModOutValid
   val isXRetReg = RegEnable(isXRet, false.B, io.in.fire)
   io.out.valid := Mux(isXRetReg, csrModOutValid, DelayN(csrModOutValid, 3))
-  io.out.bits.ctrl.exceptionVec.get := Mux(isXRetReg, exceptionVec, DelayNWithValid(exceptionVec, csrModOutValid, 3)._2)
+  io.out.bits.ctrl.exceptionVec := ExceptSparseVec.mux2(
+    isXRetReg,
+    exceptionVec,
+    exceptionVec.map(x => DelayNWithValid(x, csrModOutValid, 3)._2)
+  )
   io.out.bits.ctrl.flushPipe.get := Mux(isXRetReg, flushPipe, DelayNWithValid(flushPipe, csrModOutValid, 3)._2)
   io.out.bits.res.data := DelayNWithValid(csrMod.io.out.bits.rData, csrModOutValid, 3)._2
 
@@ -416,6 +428,8 @@ class CSRInput(implicit p: Parameters) extends XSBundle with HasSoCParameter {
 
 class CSRToDecode(implicit p: Parameters) extends XSBundle {
   val illegalInst = new Bundle {
+    
+    val mfence = Option.when(HasMptCheck) (Bool())
     /**
      * illegal sfence.vma, sinval.vma
      * raise EX_II when isModeHS && mstatus.TVM=1 || isModeHU

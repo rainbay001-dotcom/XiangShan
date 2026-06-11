@@ -38,7 +38,7 @@ case class YamlConfig(
   PMAConfigs: Option[List[PMAConfigEntry]],
   EnableCHIAsyncBridge: Option[Boolean],
   L2CacheConfig: Option[L2CacheConfig],
-  L3CacheConfig: Option[L3CacheConfig],
+  OpenLLCConfig: Option[OpenLLCConfig],
   HartIDBits: Option[Int],
   DebugAttachProtocals: Option[List[String]],
   DebugModuleParams: Option[DebugModuleParams],
@@ -97,7 +97,7 @@ object YamlParser {
       })
     }
     yamlConfig.L2CacheConfig.foreach(l2 => newConfig = newConfig.alter(l2))
-    yamlConfig.L3CacheConfig.foreach(l3 => newConfig = newConfig.alter(l3))
+    yamlConfig.OpenLLCConfig.foreach(llc => newConfig = newConfig.alter(llc))
     yamlConfig.DebugAttachProtocals.foreach { protocols =>
       newConfig = newConfig.alter((site, here, up) => {
         case ExportDebug => DebugAttachParams(protocols = protocols.map {
@@ -160,7 +160,7 @@ object YamlParser {
     }
     yamlConfig.CHIIssue.foreach { issue =>
       newConfig = newConfig.alter((site, here, up) => {
-        case coupledL2.tl2chi.CHIIssue => issue
+        case xscache.chi.CHIIssue => issue
       })
     }
     yamlConfig.WFIClockGate.foreach { enable =>
@@ -190,12 +190,12 @@ object YamlParser {
     }
     yamlConfig.EnableCHINS.foreach { enable =>
       newConfig = newConfig.alter((site, here, up) => {
-        case coupledL2.tl2chi.NonSecureKey => enable
+        case xscache.chi.NonSecureKey => enable
       })
     }
     yamlConfig.CHIAddrWidth.foreach { width =>
       newConfig = newConfig.alter((site, here, up) => {
-        case coupledL2.tl2chi.CHIAddrWidthKey => width
+        case xscache.chi.CHIAddrWidthKey => width
       })
     }
     yamlConfig.CVMParams.foreach { cvmParams =>

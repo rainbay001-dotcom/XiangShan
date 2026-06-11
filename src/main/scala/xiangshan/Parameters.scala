@@ -18,8 +18,8 @@ package xiangshan
 
 import chisel3._
 import chisel3.util._
-import coupledL2._
-import coupledL2.tl2chi._
+import xscache.coupledL2._
+import xscache.chi._
 import freechips.rocketchip.diplomacy.AddressSet
 import freechips.rocketchip.tile.MaxHartIdBits
 import org.chipsalliance.cde.config.{Field, Parameters}
@@ -53,6 +53,10 @@ case class XSCoreParameters
   VLEN: Int = 128,
   ELEN: Int = 64,
   HSXLEN: Int = 64,
+  HasMptCheck: Boolean = false, //enable mpt
+  HasMptCheckDefault: Boolean = false, // hardwired testing code: fake 2M MPT table
+  HasMptCheckDefault4k: Boolean = false, // hardwired testing code: fake 4k MPT table
+  HasMptInodeOpt: Boolean = false, // hardwired testing code: skip mpt check for non-leaf ptw nodes
   HasBitmapCheck: Boolean = true,
   HasBitmapCheckDefault: Boolean = false,
   HasMExtension: Boolean = true,
@@ -70,6 +74,7 @@ case class XSCoreParameters
   HasVPU: Boolean = true,
   HasCustomCSRCacheOp: Boolean = true,
   AsidLength: Int = 16,
+  SdidLength: Int = 6,
   VmidLength: Int = 14,
   EnbaleTlbDebug: Boolean = false,
   EnableClockGate: Boolean = true,
@@ -114,6 +119,7 @@ case class XSCoreParameters
   IssueQueueSize: Int = 20,
   IssueQueueCompEntrySize: Int = 12,
   EnableBackendV2Config: Boolean = false,
+  EnableDispatchIQBalanceOpt: Boolean = true,
   intPreg: PregParams = IntPregParams(
     numEntries = 224,
     numBank    = 4,
@@ -161,7 +167,7 @@ case class XSCoreParameters
   VecMemUnitStrideMaxFlowNum: Int = 2,
   VecMemLSQEnqIteratorNumberSeq: Seq[Int] = Seq(16, 16, 16, 16, 16, 16),
   StoreBufferSize: Int = 16,
-  StoreBufferThreshold: Int = 7,
+  StoreBufferThreshold: Int = 9,
   EnsbufferWidth: Int = 2,
   LoadDependencyWidth: Int = 2,
   // ============ VLSU ============
@@ -277,8 +283,8 @@ case class XSCoreParameters
     name = "l2",
     ways = 8,
     sets = 1024, // default 512KB L2
-    prefetch = Seq(coupledL2.prefetch.PrefetchReceiverParams(), coupledL2.prefetch.BOPParameters(),
-      coupledL2.prefetch.TPParameters()),
+    prefetch = Seq(xscache.coupledL2.prefetch.PrefetchReceiverParams(), xscache.coupledL2.prefetch.BOPParameters(),
+      xscache.coupledL2.prefetch.TPParameters()),
   )),
   L2NBanks: Int = 1,
   usePTWRepeater: Boolean = false,
@@ -293,8 +299,8 @@ case class XSCoreParameters
     "i", "m", "a", "f", "d", "c", /* "b", */ "v", "h",
     // multi-letter extensions, sorted alphanumerically
     "sdtrig", "sha", "shcounterenw", "shgatpa", "shlcofideleg", "shtvala", "shvsatpa", "shvstvala",
-    "shvstvecd", "smaia", "smcntrpmf", "smcsrind", "smdbltrp", "smmpm", "smnpm", "smrnmi", "smstateen",
-    "ss1p13", "ssaia", "ssccptr", "sscofpmf", "sscounterenw", "sscsrind", "ssdbltrp", "ssnpm",
+    "shvstvecd", "smaia", "smcdeleg", "smcntrpmf", "smcsrind", "smdbltrp", "smmpm", "smnpm", "smrnmi", "smstateen",
+    "ss1p13", "ssaia", "ssccfg", "ssccptr", "sscofpmf", "sscounterenw", "sscsrind", "ssdbltrp", "ssnpm",
     "sspm", "ssstateen", "ssstrict", "sstc", "sstvala", "sstvecd", "ssu64xl", "supm", "sv39",
     "sv48", "svade", "svbare", "svinval", "svnapot", "svpbmt", "za64rs", "zacas", "zawrs", "zba",
     "zbb", "zbc", "zbkb", "zbkc", "zbkx", "zbs", "zcb", "zcmop", "zfa", "zfh", "zfhmin", "zic64b",
@@ -305,7 +311,7 @@ case class XSCoreParameters
 
   def vlWidth = log2Up(VLEN) + 1
 
-  /* 
+  /*
     Top-Down, ExecutionStall used
   */
   def fewUops = 4
@@ -518,6 +524,7 @@ case object DebugOptionsKey extends Field[DebugOptions]
 case class DebugOptions
 (
   FPGAPlatform: Boolean = false,
+  DumpCSR: Boolean = false,
   ResetGen: Boolean = false,
   EnableDifftest: Boolean = false,
   AlwaysBasicDiff: Boolean = true,
@@ -565,10 +572,14 @@ trait HasXSParameter {
   val fLen = 64
   def hartIdLen = p(MaxHartIdBits)
   val xLen = XLEN
-
+  assert(!(HasMptCheck == true && HasBitmapCheck == true), "Conflicts: MPT and Bitmap can't be used together")
+  def HasMptCheck = coreParams.HasMptCheck && !coreParams.HasBitmapCheck
+  def HasMptCheckDefault = coreParams.HasMptCheckDefault
+  def HasMptCheckDefault4k = coreParams.HasMptCheckDefault4k
+  def HasMptInodeOpt = coreParams.HasMptInodeOpt
   def HasBitmapCheck = coreParams.HasBitmapCheck
   def HasBitmapCheckDefault = coreParams.HasBitmapCheckDefault
-  
+
   /** prefetch config */
   def prefetcherSeq = coreParams.prefetcher
   def prefetcherNum = max(prefetcherSeq.size, 1) //TODO lyq: 1 for simpler code generation, but it's also ugly
@@ -615,7 +626,7 @@ trait HasXSParameter {
       coreParams.VAddrBitsSv39 max coreParams.GPAddrBitsSv39x4
     }
   }
-
+  def SdidLength = coreParams.SdidLength
   def AsidLength = coreParams.AsidLength
   def VmidLength = coreParams.VmidLength
   def ReSelectLen = coreParams.ReSelectLen
@@ -749,7 +760,7 @@ trait HasXSParameter {
   def EnableAtCommitMissTrigger = coreParams.EnableAtCommitMissTrigger
   def EnableStorePrefetchSMS = coreParams.EnableStorePrefetchSMS
   def EnableStorePrefetchSPB = coreParams.EnableStorePrefetchSPB
-  def HasCMO = coreParams.HasCMO && p(EnableCHI)
+  def HasCMO = coreParams.HasCMO
   require(LoadPipelineWidth == backendParams.LdExuCnt, "LoadPipelineWidth must be equal exuParameters.LduCnt!")
   require(StorePipelineWidth == backendParams.StaCnt, "StorePipelineWidth must be equal exuParameters.StuCnt!")
   def Enable3Load3Store = (LoadPipelineWidth == 3 && StorePipelineWidth == 3)

@@ -4,7 +4,6 @@ import chisel3._
 import chisel3.util._
 import utility.{DelayN, GatedValidRegNext}
 import utils._
-import xiangshan.ExceptionNO
 import xiangshan.backend.fu.NewCSR.CSRBundles.{CauseBundle, PrivState, XtvecBundle}
 import xiangshan.backend.fu.NewCSR.CSRDefines.{PrivMode, XtvecMode}
 import xiangshan.backend.fu.NewCSR.InterruptNO
@@ -298,7 +297,7 @@ class InterruptFilter extends Module {
   // Candidate2,Candidate5 不可能同时成立
   val onlyC1Enable = Candidate1 & !Candidate45
   val onlyC2Enable = Candidate2 & !Candidate45
-  val onlyC3Enable = Candidate3 & !Candidate123
+  val onlyC3Enable = Candidate3 & !Candidate45
   val onlyC4Enable = Candidate4 & !Candidate123
   val onlyC5Enable = Candidate5 & !Candidate123
   val C1C4Enable   = Candidate1 & Candidate4
@@ -548,7 +547,7 @@ class InterruptFilter extends Module {
                          C1C5EnableReg && (iprioC1 === iprioC2C5 && !hvictlReg.DPR.asBool || iprioC1 > iprioC2C5)
   val viIsHvictlInjectReg = RegNext(vsIRModeCond && SelectCandidate5 && io.in.mnstatusNMIE, false.B)
 
-  io.out.interruptVec.valid := intrVecReg.orR || debugIntrReg || viIsHvictlInjectReg
+  io.out.interruptVec.valid := intrVecReg.orR || debugIntrReg
   io.out.interruptVec.bits := intrVecReg
   io.out.debug := debugIntrReg
   io.out.nmi := nmiReg

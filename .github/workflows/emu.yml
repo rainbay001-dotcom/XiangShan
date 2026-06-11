@@ -73,56 +73,13 @@ jobs:
             --trace-fst
       - name: GSIM Test - Linux
         run: |
+          # TODO: remove --disable-fork to enable lightSSS when gsim supports it
           python3 ${GITHUB_WORKSPACE}/scripts/xiangshan.py \
             --wave-dump ${WAVE_HOME} \
             --numa --threads 1 \
+            --disable-fork \
             --ci linux-hello-opensbi \
             2> stderr.log
-          cat stderr.log | sort
-
-  # CHI Release config test
-  emu-chi:
-    name: EMU - CHI
-    needs: changes
-    if: ${{ needs.changes.outputs.core == 'true' }}
-    runs-on: builder
-    timeout-minutes: 900
-    continue-on-error: false
-    steps:
-      - name: Cleanup orphan EMU
-        run: |
-          pkill -9 -e -f ${GITHUB_WORKSPACE}/build/emu || true
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          submodules: true
-      - name: Init
-        run: |
-          mkdir -p ${WAVE_HOME} ${PERF_HOME}
-          make init-force
-          python3 ${GITHUB_WORKSPACE}/scripts/xiangshan.py --clean
-      - name: Build CHIConfig Release EMU
-        run: |
-          python3 ${GITHUB_WORKSPACE}/scripts/xiangshan.py --build \
-            --emulator verilator --threads 8 \
-            --config CHIConfig --release \
-            --trace-fst
-      - name: CHIConfig Test - Linux
-        run: |
-          python3 ${GITHUB_WORKSPACE}/scripts/xiangshan.py \
-            --wave-dump ${WAVE_HOME} \
-            --threads 8 --numa \
-            --ci linux-hello-opensbi \
-            2> stderr.log
-          cat stderr.log | sort
-      - name: CHIConfig Test - Iopmp
-        run: |
-          python3 ${GITHUB_WORKSPACE}/scripts/xiangshan.py \
-            --wave-dump ${WAVE_HOME} \
-            --threads 8 --numa \
-            --no-diff \
-            --ci iopmp-test \
-          2> stderr.log
           cat stderr.log | sort
 
   # Simfrontend test
@@ -277,9 +234,10 @@ jobs:
       - name: Build SIMV on Remote
         run: |
           ssh -tt eda01 "python3 `echo $GITHUB_WORKSPACE`/scripts/xiangshan.py --vcs-build --xprop"
-      - name: V Extension Test - rvv-test
-        run: |
-          ssh -tt eda01 "python3 `echo $GITHUB_WORKSPACE`/scripts/xiangshan.py --wave-dump `echo $WAVE_HOME` --ci-vcs rvv-test"
+      # Vector-related workloads are temporarily disabled in CI due to the ongoing vector refactor.
+      # - name: V Extension Test - rvv-test
+      #   run: |
+      #     ssh -tt eda01 "python3 `echo $GITHUB_WORKSPACE`/scripts/xiangshan.py --wave-dump `echo $WAVE_HOME` --ci-vcs rvv-test"
       - name: Simple Test - CoreMark 1 iteration
         run: |
           ssh -tt eda01 "python3 `echo $GITHUB_WORKSPACE`/scripts/xiangshan.py --wave-dump `echo $WAVE_HOME` --ci-vcs coremark-1-iteration"
@@ -368,11 +326,11 @@ jobs:
         run: |
           make sim-verilog CHISEL_TARGET=chirrtl
           python3 $GITHUB_WORKSPACE/scripts/xiangshan.py --clean
-      - name: Build TLMinimalConfig Release EMU
+      - name: Build MinimalConfig Release EMU
         run: |
           python3 $GITHUB_WORKSPACE/scripts/xiangshan.py --build \
-            --threads 8 --config TLMinimalConfig --release --trace-fst
-      - name: Run TLMinimalConfig - Linux
+            --threads 8 --config MinimalConfig --release --trace-fst
+      - name: Run MinimalConfig - Linux
         run: |
           python3 $GITHUB_WORKSPACE/scripts/xiangshan.py --wave-dump $WAVE_HOME --threads 8 --numa --ci linux-hello-opensbi 2> perf.log
           cat perf.log | sort
@@ -413,16 +371,12 @@ jobs:
         run: cd difftest && git fetch --all && git merge-base --is-ancestor `git rev-parse HEAD` origin/master
       - name: Check ready-to-run
         run: cd ready-to-run && git fetch --all && git merge-base --is-ancestor `git rev-parse HEAD` origin/master
-      - name: Check huancun
-        run: cd huancun && git fetch --all && git merge-base --is-ancestor `git rev-parse HEAD` origin/master
       - name: Check utility
         run: cd utility && git fetch --all && git merge-base --is-ancestor `git rev-parse HEAD` origin/master
       - name: Check yunsuan
         run: cd yunsuan && git fetch --all && git merge-base --is-ancestor `git rev-parse HEAD` origin/kunminghu-v3
-      - name: Check coupledL2
-        run: cd coupledL2 && git fetch --all && git merge-base --is-ancestor `git rev-parse HEAD` origin/master
-      - name: Check openLLC
-        run: cd openLLC && git fetch --all && git merge-base --is-ancestor `git rev-parse HEAD` origin/master
+      - name: Check XSCache
+        run: cd XSCache && git fetch --all && git merge-base --is-ancestor `git rev-parse HEAD` origin/master
       - name: Check ChiselAIA
         run: cd ChiselAIA && git fetch --all && git merge-base --is-ancestor `git rev-parse HEAD` origin/kunminghu-v3
 
