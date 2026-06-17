@@ -32,7 +32,7 @@ import xiangshan.backend.fu.util.SdtrigExt
 import xiangshan.backend.exu.ExeUnitParams
 import xiangshan.mem.Bundles._
 import xiangshan.cache.mmu.Pbmt
-import xiangshan.cache.{AtomicWordIO, HasDCacheParameters, MemoryOpConstants, TLError}
+import xiangshan.cache.{AtomicWordIO, UncacheAtomicWordIO, HasDCacheParameters, MemoryOpConstants, TLError}
 import xiangshan.cache.mmu.{TlbCmd, TlbRequestIO}
 import difftest._
 
@@ -48,6 +48,7 @@ class AtomicsUnit(val param: ExeUnitParams)(implicit p: Parameters) extends XSMo
     // AtomicsUnit re-uses lda port to write back
     val out           = new MemWriteBack(ldaParams.head)
     val dcache        = new AtomicWordIO
+    val uncache       = new UncacheAtomicWordIO  // NC AMO path through L2 CHI
     val dtlb          = new TlbRequestIO(2)
     val pmpResp       = Flipped(new PMPRespBundle())
     val flush_sbuffer = new SbufferFlushBundle
@@ -61,18 +62,20 @@ class AtomicsUnit(val param: ExeUnitParams)(implicit p: Parameters) extends XSMo
   // Atomics Memory Accsess FSM
   //-------------------------------------------------------
   val List(
-    s_invalid, 
-    s_tlb_and_flush_sbuffer_req, 
-    s_pm, 
-    s_wait_flush_sbuffer_resp, 
-    s_cache_req, 
+    s_invalid,
+    s_tlb_and_flush_sbuffer_req,
+    s_pm,
+    s_wait_flush_sbuffer_resp,
+    s_cache_req,
     s_cache_resp,
-    s_cache_resp_latch, 
-    s_finish, 
-    s_finish2, 
-    s_extra_wb2, 
-    s_extra_wb, 
-  ) = Enum(11)
+    s_cache_resp_latch,
+    s_finish,
+    s_finish2,
+    s_extra_wb2,
+    s_extra_wb,
+    s_nc_req,   // NC AMO: send request to UncacheAtomicBuffer
+    s_nc_resp,  // NC AMO: wait for UncacheAtomicBuffer response
+  ) = Enum(13)
   val state = RegInit(s_invalid)
   val out_valid = RegInit(false.B)
   val data_valid = RegInit(false.B)
@@ -133,6 +136,9 @@ class AtomicsUnit(val param: ExeUnitParams)(implicit p: Parameters) extends XSMo
 
   io.dcache.req.valid  := false.B
   io.dcache.req.bits   := DontCare
+
+  io.uncache.req.valid := false.B
+  io.uncache.req.bits  := DontCare
 
   io.dtlb.req.valid    := false.B
   io.dtlb.req.bits     := DontCare
@@ -289,34 +295,103 @@ class AtomicsUnit(val param: ExeUnitParams)(implicit p: Parameters) extends XSMo
   }
 
   val pbmtReg = RegEnable(io.dtlb.resp.bits.pbmt(0), io.dtlb.resp.fire && !io.dtlb.resp.bits.miss)
+  // NC via Svpbmt: TLB returns pbmt=NC(01)
+  val is_nc_reg = RegEnable(Pbmt.isNC(io.dtlb.resp.bits.pbmt(0)),
+                             io.dtlb.resp.fire && !io.dtlb.resp.bits.miss)
+  // PMA-NC: non-cacheable main memory (pmp.mmio=true but pmp.atomic=true supports atomic ops)
+  val nc_via_pma_reg = RegInit(false.B)
+  // Local LR/SC reservation for NC memory (HN-F exclusive monitor tracks cross-node atomicity)
+  val lr_valid = RegInit(false.B)
+  val lr_addr  = Reg(UInt(PAddrBits.W))
+
   when (state === s_pm) {
     val pmp = WireInit(io.pmpResp)
-    is_mmio := Pbmt.isIO(pbmtReg) || (Pbmt.isPMA(pbmtReg) && pmp.mmio)
+    // PMA-NC: mmio=true (non-cacheable) but atomic=true (supports atomic ops via CHI)
+    val nc_via_pma = Pbmt.isPMA(pbmtReg) && pmp.mmio && pmp.atomic
+    nc_via_pma_reg := nc_via_pma
+
+    // MMIO for NC AMO purposes: explicitly IO-ordered (Svpbmt IO) or PMA MMIO without atomic support
+    is_mmio := Pbmt.isIO(pbmtReg) || (Pbmt.isPMA(pbmtReg) && pmp.mmio && !pmp.atomic)
 
     // NOTE: only handle load/store exception here, if other exception happens, don't send here
     val exception_va = exceptionVec(storePageFault) || exceptionVec(loadPageFault) ||
       exceptionVec(storeGuestPageFault) || exceptionVec(loadGuestPageFault) ||
       exceptionVec(storeAccessFault) || exceptionVec(loadAccessFault)
-    val exception_pa_mmio_nc = pmp.mmio || Pbmt.isIO(pbmtReg) || Pbmt.isNC(pbmtReg)
-    val exception_pa = pmp.st || pmp.ld || exception_pa_mmio_nc
-    when (exception_va || exception_pa) {
+    // NC memory (Svpbmt NC or PMA-NC with atomic=true) is allowed for AMO → no exception
+    val exception_pa_mmio = Pbmt.isIO(pbmtReg) || (Pbmt.isPMA(pbmtReg) && pmp.mmio && !pmp.atomic)
+    val exception_pa = pmp.st || pmp.ld || exception_pa_mmio
+
+    // AMOCAS.Q on NC: reject (128-bit beyond XLEN TL interface width)
+    val nc_casq_fault = (is_nc_reg || nc_via_pma) && LSUOpType.isAMOCASQ(uop.fuOpType)
+    val is_nc = is_nc_reg || nc_via_pma
+
+    when (nc_casq_fault) {
+      exceptionVec(storeAccessFault) := true.B
       state := s_finish
       out_valid := true.B
       atom_override_xtval := true.B
+    }.elsewhen (exception_va || exception_pa) {
+      state := s_finish
+      out_valid := true.B
+      atom_override_xtval := true.B
+    }.elsewhen (is_nc) {
+      // NC AMO: route to UncacheAtomicBuffer; flush sbuffer first if needed
+      state := Mux(sbuffer_empty, s_nc_req, s_wait_flush_sbuffer_resp)
     }.otherwise {
-      // if sbuffer has been flushed, go to query dcache, otherwise wait for sbuffer.
-      state := Mux(sbuffer_empty, s_cache_req, s_wait_flush_sbuffer_resp);
+      // Cached AMO: query dcache (flush sbuffer first if needed)
+      state := Mux(sbuffer_empty, s_cache_req, s_wait_flush_sbuffer_resp)
     }
     // update storeAccessFault bit
     exceptionVec(loadAccessFault) := exceptionVec(loadAccessFault) ||
-      (pmp.ld || exception_pa_mmio_nc) && isLr
+      (pmp.ld || exception_pa_mmio) && isLr
     exceptionVec(storeAccessFault) := exceptionVec(storeAccessFault) || pmp.st ||
-      (pmp.ld || exception_pa_mmio_nc) && !isLr
+      (pmp.ld || exception_pa_mmio) && !isLr
   }
 
   when (state === s_wait_flush_sbuffer_resp) {
     when (sbuffer_empty) {
-      state := s_cache_req
+      state := Mux(is_nc_reg || nc_via_pma_reg, s_nc_req, s_cache_req)
+    }
+  }
+
+  // NC AMO path: s_nc_req / s_nc_resp
+  when (state === s_nc_req) {
+    when (isSc && (!lr_valid || lr_addr =/= paddr)) {
+      // SC reservation miss: fail immediately (rd=1), no TL transaction needed
+      resp_data      := 1.U
+      success        := false.B
+      lr_valid       := false.B
+      state          := s_finish
+      out_valid      := true.B
+    }.elsewhen (io.uncache.req.fire) {
+      when (isLr) {
+        lr_valid := true.B
+        lr_addr  := paddr
+      }
+      when (isSc) {
+        lr_valid := false.B  // consume reservation on SC
+      }
+      state := s_nc_resp
+    }
+  }
+
+  when (state === s_nc_resp) {
+    when (io.uncache.resp.valid) {
+      val nc_data  = io.uncache.resp.bits.data
+      val rdataSel = Mux(paddr(2, 0) === 0.U, nc_data, nc_data >> 32)
+      val lsuSize  = LSUOpType.size(uop.fuOpType)
+      resp_data := Mux(isSc, 0.U,
+        Mux(lsuSize === LSUOpType.D.U,
+          SignExt(nc_data(63, 0), QuadWordBits),
+          SignExt(rdataSel(31, 0), QuadWordBits)
+        )
+      )
+      when (isSc) { success := true.B }
+      when (io.uncache.resp.bits.nderr && io.csrCtrl.cache_error_enable) {
+        exceptionVec(storeAccessFault) := true.B
+      }
+      state     := s_finish
+      out_valid := true.B
     }
   }
 
@@ -528,13 +603,54 @@ class AtomicsUnit(val param: ExeUnitParams)(implicit p: Parameters) extends XSMo
   io.out.toRob.bits.trigger.foreach(_ := trigger)
   io.out.toRob.bits.isRVC.foreach(_ := uop.isRVC)
   io.out.toRob.bits.lqIdx.foreach(_ := uop.lqIdx)
-  io.out.toRob.bits.debugInfo.isNCIO.foreach(_ := false.B)
+  io.out.toRob.bits.debugInfo.isNCIO.foreach(_ := is_nc_reg || nc_via_pma_reg)
   io.out.toRob.bits.debugInfo.isPerfCnt.foreach(_ := DontCare)
   io.out.toRob.bits.debugInfo.isMMIO.foreach(_ := is_mmio)
   io.out.toRob.bits.debugInfo.paddr.foreach(_ := paddr)
   io.out.toRob.bits.debugInfo.vaddr.foreach(_ := vaddr)
   io.out.toRob.bits.debugInfo.debug_seqNum.foreach(_ := uop.debug_seqNum)
   io.out.toRob.bits.debugInfo.perfDebugInfo.foreach(_ := uop.perfDebugInfo)
+
+  // NC AMO: drive io.uncache.req to UncacheAtomicBuffer
+  // SC with no valid reservation fails early in s_nc_req (no TL transaction)
+  val nc_sc_no_reservation = isSc && (is_nc_reg || nc_via_pma_reg) && (!lr_valid || lr_addr =/= paddr)
+  io.uncache.req.valid := state === s_nc_req && data_valid && !nc_sc_no_reservation
+  io.uncache.req.bits.cmd := LookupTree(uop.fuOpType, List(
+    LSUOpType.lr_w      -> M_XLR,
+    LSUOpType.sc_w      -> M_XSC,
+    LSUOpType.amoswap_w -> M_XA_SWAP,
+    LSUOpType.amoadd_w  -> M_XA_ADD,
+    LSUOpType.amoxor_w  -> M_XA_XOR,
+    LSUOpType.amoand_w  -> M_XA_AND,
+    LSUOpType.amoor_w   -> M_XA_OR,
+    LSUOpType.amomin_w  -> M_XA_MIN,
+    LSUOpType.amomax_w  -> M_XA_MAX,
+    LSUOpType.amominu_w -> M_XA_MINU,
+    LSUOpType.amomaxu_w -> M_XA_MAXU,
+    LSUOpType.amocas_w  -> M_XA_CASW,
+    LSUOpType.lr_d      -> M_XLR,
+    LSUOpType.sc_d      -> M_XSC,
+    LSUOpType.amoswap_d -> M_XA_SWAP,
+    LSUOpType.amoadd_d  -> M_XA_ADD,
+    LSUOpType.amoxor_d  -> M_XA_XOR,
+    LSUOpType.amoand_d  -> M_XA_AND,
+    LSUOpType.amoor_d   -> M_XA_OR,
+    LSUOpType.amomin_d  -> M_XA_MIN,
+    LSUOpType.amomax_d  -> M_XA_MAX,
+    LSUOpType.amominu_d -> M_XA_MINU,
+    LSUOpType.amomaxu_d -> M_XA_MAXU,
+    LSUOpType.amocas_d  -> M_XA_CASD
+  ))
+  io.uncache.req.bits.addr := paddr
+  // W AMO: replicate rs2[31:0] in both 32-bit byte lanes; D AMO: rs2[63:0]
+  io.uncache.req.bits.data := Mux(
+    LSUOpType.size(uop.fuOpType) === LSUOpType.D.U || isAMOCAS,
+    rs2(XLEN - 1, 0),
+    Fill(2, rs2(31, 0))
+  )
+  io.uncache.req.bits.cmp_data   := rd(XLEN - 1, 0)   // compare value for AMOCAS
+  io.uncache.req.bits.mask       := genWmaskAMO(paddr, LSUOpType.size(uop.fuOpType))(DataBytes - 1, 0)
+  io.uncache.req.bits.memBackTypeMM := true.B
 
   io.dcache.req.valid := Mux(
     io.dcache.req.bits.cmd === M_XLR,
