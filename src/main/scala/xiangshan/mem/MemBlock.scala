@@ -316,6 +316,7 @@ class MemBlockInlined()(implicit p: Parameters) extends LazyModule
 
   val dcache = LazyModule(new DCacheWrapper())
   val uncache = LazyModule(new Uncache())
+  val uncacheAMO = LazyModule(new UncacheAtomicBuffer())  // NC AMO path through L2 CHI
   val uncache_port = TLTempNode()
   val uncache_xbar = TLXbar()
   val ptw = LazyModule(new L2TLBWrapper())
@@ -337,6 +338,7 @@ class MemBlockInlined()(implicit p: Parameters) extends LazyModule
     ptw_to_l2_buffer.node := ptw.node
   }
   uncache_xbar := TLBuffer() := uncache.clientNode
+  uncache_xbar := TLBuffer() := uncacheAMO.clientNode  // NC AMO client
   if (dcache.uncacheNode.isDefined) {
     dcache.uncacheNode.get := TLBuffer.chainNode(2) := uncache_xbar
   }
@@ -1365,7 +1367,8 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   atomicsUnit.io.dtlb.req.ready  := amoTlb.req.ready
   atomicsUnit.io.pmpResp := pmp_check(0).resp
 
-  atomicsUnit.io.dcache <> dcache.io.lsu.atomics
+  atomicsUnit.io.dcache   <> dcache.io.lsu.atomics
+  atomicsUnit.io.uncache  <> outer.uncacheAMO.module.io  // NC AMO path through L2 CHI
   atomicsUnit.io.flush_sbuffer.empty := stIsEmpty
 
   atomicsUnit.io.csrCtrl := csrCtrl
