@@ -179,6 +179,7 @@ case class XSCoreParameters
   VSegmentBufferSize: Int = 8,
   // ==============================
   UncacheBufferSize: Int = 16,
+  UncacheAtomicBufferSize: Int = 4,
   EnableLoadToLoadForward: Boolean = false,
   EnableFastForward: Boolean = true,
   EnableLdVioCheckAfterReset: Boolean = true,
@@ -746,6 +747,7 @@ trait HasXSParameter {
   def VSegmentBufferSize = coreParams.VSegmentBufferSize
   def UncacheBufferSize = coreParams.UncacheBufferSize
   def UncacheBufferIndexWidth = log2Up(UncacheBufferSize)
+  def UncacheAtomicBufferSize = coreParams.UncacheAtomicBufferSize
   def EnableLoadToLoadForward = coreParams.EnableLoadToLoadForward
   def EnableFastForward = coreParams.EnableFastForward
   def EnableLdVioCheckAfterReset = coreParams.EnableLdVioCheckAfterReset

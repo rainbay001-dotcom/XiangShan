@@ -314,8 +314,9 @@ class MemBlockInlined()(implicit p: Parameters) extends LazyModule
   with HasXSParameter {
   override def shouldBeInlined: Boolean = true
 
-  val dcache = LazyModule(new DCacheWrapper())
-  val uncache = LazyModule(new Uncache())
+  val dcache     = LazyModule(new DCacheWrapper())
+  val uncache    = LazyModule(new Uncache())
+  val uncacheAMO = LazyModule(new UncacheAtomicBuffer())
   val uncache_port = TLTempNode()
   val uncache_xbar = TLXbar()
   val ptw = LazyModule(new L2TLBWrapper())
@@ -337,6 +338,7 @@ class MemBlockInlined()(implicit p: Parameters) extends LazyModule
     ptw_to_l2_buffer.node := ptw.node
   }
   uncache_xbar := TLBuffer() := uncache.clientNode
+  uncache_xbar := TLBuffer() := uncacheAMO.clientNode
   if (dcache.uncacheNode.isDefined) {
     dcache.uncacheNode.get := TLBuffer.chainNode(2) := uncache_xbar
   }
@@ -509,12 +511,21 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
   storeUnits.zipWithIndex.map(x => x._1.suggestName("StoreUnit_"+x._2))
 
 
+  val uncacheAMO = outer.uncacheAMO.module
+  // NC AMO writeback is suppressed while cached atomicsUnit owns the port
+  uncacheAMO.io.wbReady := !atomicsUnit.io.out.toRob.valid
+  atomicsUnit.io.uncache <> uncacheAMO.io.req
+
   writebackLda.zipWithIndex.foreach { case (wb, i) =>
     if (i == AtomicWBPort) {
-      // atomicsUnit writeback
+      // Priority 1: cached AMO (DCache path: LR/SC/AMOCAS/regular AMO on cached pages)
+      // Priority 2: NC AMO async writeback (UncacheAtomicBuffer)
+      // Priority 3: normal load
       when (atomicsUnit.io.out.toRob.valid) {
         wb := atomicsUnit.io.out
-      } .otherwise {
+      }.elsewhen (uncacheAMO.io.out.toRob.valid) {
+        wb := uncacheAMO.io.out
+      }.otherwise {
         wb := newLoadUnits(i).io.ldout
       }
     } else {
@@ -1347,7 +1358,8 @@ class MemBlockInlinedImp(outer: MemBlockInlined) extends LazyModuleImp(outer)
 
     state := s_atomics(i)
   }
-  when (atomicsUnit.io.out.toRob.valid) {
+  when (atomicsUnit.io.out.toRob.valid || atomicsUnit.io.uncache.fire) {
+    // NC AMO: AtomicsUnit resets immediately on uncache.fire; MemBlock also returns to s_normal
     state := s_normal
   }
 
