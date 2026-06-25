@@ -278,7 +278,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
 
 
     for ((core, i) <- core_with_l2.zipWithIndex) {
-      core.module.io.hartId := i.U
+      core.module.io.hartId := tiles(i).HartId.U
       core.module.io.msiInfo := msiInfo
       core.module.io.teemsiInfo.foreach(_ := msiInfo)
       core.module.io.clintTime := misc.module.clintTime
